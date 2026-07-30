@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Today</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Today">
+<meta name="theme-color" content="#fafaf8">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff;
+  --ink:#1c1d31;
+  --muted:#9a9cb0;
+  --card:#f5f6f9;
+  --line:#eef0f4;
+  --accent:#6d4df2;
+  --sans:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);
+  overscroll-behavior:none;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body{font-family:var(--sans);color:var(--ink)}
+input{-webkit-user-select:auto;user-select:auto}
+
+#pager{position:fixed;inset:0;display:flex;width:200vw;height:100%;
+  will-change:transform;z-index:1}
+.page{width:100vw;height:100%;overflow-y:auto;overflow-x:hidden;position:relative;
+  padding:calc(env(safe-area-inset-top) + 12px) 20px calc(env(safe-area-inset-bottom) + 110px) 20px;
+  touch-action:pan-y;overscroll-behavior:contain}
+
+/* top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-bottom:18px}
+.topbar .titles{flex:1;text-align:center}
+.topbar h1{font-size:22px;font-weight:700;line-height:1.2}
+.topbar .date,.topbar .sub{font-size:13px;font-weight:500;color:var(--muted);margin-top:1px}
+.tb-btn{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--accent);
+  background:transparent;border:none;padding:8px 6px;min-width:64px;cursor:pointer;line-height:1}
+.tb-btn:active{opacity:.6}
+.tb-btn.active{color:#fff;background:var(--accent);border-radius:999px;padding:8px 14px}
+
+/* add row */
+.add-row{display:flex;align-items:center;min-height:52px;
+  border-bottom:1px solid var(--line);
+  color:var(--muted);font-size:16px;font-weight:500;cursor:text}
+.add-row input{flex:1;border:none;outline:none;background:transparent;font-family:var(--sans);
+  font-size:16px;font-weight:500;color:var(--ink);padding:0}
+.add-row input::placeholder{color:var(--muted)}
+
+/* task rows */
+ul.tasks{list-style:none}
+li.task{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
+  touch-action:pan-y}
+li.task.dragging{z-index:20;border-bottom-color:transparent}
+li.task.dragging .t-content{box-shadow:0 8px 22px rgba(28,29,49,.16);border-radius:12px}
+li.task.shifting .t-content{transition:transform .18s ease}
+.t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:0}
+.t-actions button{border:none;font-family:var(--sans);font-size:13px;font-weight:600;
+  width:76px;color:#fff;cursor:pointer}
+.t-actions .a-backlog{background:#b9bcd0}
+.t-actions .a-delete{background:#ff5c69}
+.t-content{position:relative;z-index:1;display:flex;align-items:center;gap:10px;
+  min-height:52px;background:var(--bg);
+  will-change:transform;transition:transform .22s cubic-bezier(.25,.8,.35,1)}
+.t-text{flex:1;font-size:16px;font-weight:500;line-height:1.35;padding:14px 0;
+  position:relative;min-width:0;overflow-wrap:anywhere}
+.t-text input{width:100%;border:none;outline:none;background:transparent;
+  font-family:var(--sans);font-size:16px;font-weight:500;color:var(--ink)}
+li.task.crossed .t-text{color:var(--muted)}
+.t-strike{position:absolute;left:-2px;top:50%;height:8px;transform:translateY(-50%);
+  width:calc(100% + 4px);pointer-events:none;overflow:visible}
+.t-strike path{stroke:var(--muted);stroke-width:1.6;fill:none;stroke-linecap:round}
+li.task .strike-anim path{stroke-dasharray:1;stroke-dashoffset:1;
+  animation:strike .3s ease-out forwards}
+@keyframes strike{to{stroke-dashoffset:0}}
+.t-move{flex-shrink:0;border:none;background:transparent;padding:14px 10px;cursor:pointer}
+.t-move svg{width:26px;height:18px;display:block}
+.t-move svg path{stroke:#b9bcd0;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.mirror{transform:scaleX(-1)}
+li.task.edit-mode .t-move{opacity:.25;pointer-events:none}
+
+/* ===== backlog overlay ===== */
+#backlog{position:fixed;inset:0;z-index:30;background:var(--bg);
+  transform:translateY(104%);transition:transform .32s cubic-bezier(.3,.9,.35,1);
+  display:flex;flex-direction:column}
+#backlog.open{transform:translateY(0)}
+#backlog .bl-scroll{flex:1;overflow-y:auto;position:relative;
+  padding:calc(env(safe-area-inset-top) + 12px) 20px 170px 20px}
+li.task .t-sel{flex-shrink:0;width:26px;height:26px;border:1.5px solid #d9dbe6;
+  border-radius:50%;margin-right:4px;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;background:#fff}
+li.task.selected .t-sel{background:var(--accent);border-color:var(--accent)}
+li.task .t-sel svg{width:14px;height:14px;opacity:0}
+li.task.selected .t-sel svg{opacity:1}
+li.task .t-sel svg path{stroke:#fff;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+li.task.temp .t-text{font-style:italic;color:#7b7d92}
+#bl-addbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;
+  padding:14px 20px calc(env(safe-area-inset-bottom) + 22px);z-index:40;
+  transform:translateY(130%);transition:transform .25s ease;pointer-events:none}
+#bl-addbar.show{transform:translateY(0);pointer-events:auto}
+#bl-addbar button{font-family:var(--sans);font-size:16px;font-weight:600;
+  background:var(--accent);color:#fff;border:none;border-radius:999px;
+  padding:15px 28px;box-shadow:0 8px 24px rgba(109,77,242,.35);cursor:pointer}
+
+/* helper */
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="pager">
+  <!-- TODAY -->
+  <section class="page" id="page-today">
+    <div class="topbar">
+      <button class="tb-btn btn-backlog" data-day="today">Backlog</button>
+      <div class="titles">
+        <h1>Today</h1>
+        <div class="date" id="date-today"></div>
+      </div>
+      <button class="tb-btn btn-edit" data-day="today">Edit</button>
+    </div>
+    <div class="add-row" data-day="today"><span class="add-ph">+ New task</span></div>
+    <ul class="tasks" id="list-today"></ul>
+  </section>
+
+  <!-- TOMORROW -->
+  <section class="page" id="page-tomorrow">
+    <div class="topbar">
+      <button class="tb-btn btn-backlog" data-day="tomorrow">Backlog</button>
+      <div class="titles">
+        <h1>Tomorrow</h1>
+        <div class="date" id="date-tomorrow"></div>
+      </div>
+      <button class="tb-btn btn-edit" data-day="tomorrow">Edit</button>
+    </div>
+    <div class="add-row" data-day="tomorrow"><span class="add-ph">+ New task</span></div>
+    <ul class="tasks" id="list-tomorrow"></ul>
+  </section>
+</div>
+
+<!-- BACKLOG -->
+<section id="backlog">
+  <div class="bl-scroll">
+    <div class="topbar">
+      <button class="tb-btn" id="bl-done">Close</button>
+      <div class="titles">
+        <h1>Backlog</h1>
+        <div class="sub" id="bl-sub"></div>
+      </div>
+      <button class="tb-btn btn-edit" data-day="backlog">Edit</button>
+    </div>
+    <div class="add-row" data-day="backlog"><span class="add-ph">+ New task</span></div>
+    <ul class="tasks" id="list-backlog"></ul>
+  </div>
+  <div id="bl-addbar"><button id="bl-addbtn"></button></div>
+</section>
+
+<script>
+/* ============================== state ============================== */
+const KEY = 'today-tomorrow-v1';
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+function todayStr(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/*ROLLOVER-START*/
+function rollover(state, cur) {
+  if (!state.d) { state.d = cur; return state; }
+  if (state.d >= cur) return state;
+  const days = Math.round((Date.parse(cur) - Date.parse(state.d)) / 86400000);
+  if (days === 1) {
+    // uncrossed today-tasks roll to top; tomorrow (with its cross states) becomes today
+    state.today = [...state.today.filter(t => !t.done), ...state.tomorrow];
+  } else {
+    state.today = [...state.today.filter(t => !t.done), ...state.tomorrow.filter(t => !t.done)];
+  }
+  state.tomorrow = [];
+  state.d = cur;
+  return state;
+}
+/*ROLLOVER-END*/
+
+let state;
+function load() {
+  try { state = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { state = null; }
+  if (!state) state = { d: todayStr(), today: [], tomorrow: [], backlog: [] };
+  rollover(state, todayStr());
+  save();
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+/* ============================== rendering ============================== */
+const fmt = d => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+let editing = { today: false, tomorrow: false, backlog: false };
+let blOrigin = 'today';          // which day backlog was opened from
+let blSelected = new Set();
+
+function strikeSVG() {
+  return `<svg class="t-strike" viewBox="0 0 300 8" preserveAspectRatio="none">
+    <path pathLength="1" d="M2 4 L298 4"/>
+  </svg>`;
+}
+const ARROW = `<svg viewBox="0 0 36 22"><path d="M4 11 H31 M23 4 L31 11 L23 18"/></svg>`;
+const CHECK = `<svg viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 5"/></svg>`;
+
+function rowHTML(t, day) {
+  const isBL = day === 'backlog';
+  return `<li class="task ${t.done ? 'crossed' : ''} ${editing[day] ? 'edit-mode' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}">
+    <div class="t-actions">
+      ${isBL ? '' : '<button class="a-backlog">backlog</button>'}
+      <button class="a-delete">delete</button>
+    </div>
+    <div class="t-content">
+      ${isBL ? `<span class="t-sel">${CHECK}</span>` : ''}
+      <span class="t-text">${escapeHTML(t.text)}${t.done ? strikeSVG() : ''}</span>
+      ${isBL ? '' : `<button class="t-move ${day === 'tomorrow' ? 'mirror' : ''}">${ARROW}</button>`}
+    </div>
+  </li>`;
+}
+function escapeHTML(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function listFor(day) { return day === 'today' ? state.today : day === 'tomorrow' ? state.tomorrow : state.backlog; }
+
+function render(day) {
+  const ul = document.getElementById('list-' + day);
+  ul.innerHTML = listFor(day).map(t => rowHTML(t, day)).join('');
+}
+function renderAll() { render('today'); render('tomorrow'); render('backlog'); renderDates(); updateAddbar(); }
+function renderDates() {
+  const now = new Date();
+  const tmr = new Date(now.getTime() + 86400000);
+  document.getElementById('date-today').textContent = fmt(now);
+  document.getElementById('date-tomorrow').textContent = fmt(tmr);
+}
+
+/* ============================== pager (swipe between days) ============================== */
+const pager = document.getElementById('pager');
+let pageIndex = 0; // 0 = today, 1 = tomorrow
+function goTo(i, animate = true) {
+  pageIndex = Math.max(0, Math.min(1, i));
+  pager.style.transition = animate ? 'transform .3s cubic-bezier(.25,.8,.35,1)' : 'none';
+  pager.style.transform = `translateX(${-pageIndex * 100}vw)`;
+}
+goTo(0, false);
+
+let pDrag = null;
+pager.addEventListener('pointerdown', e => {
+  if (e.target.closest('li.task') || e.target.closest('button') || e.target.closest('.add-row') || e.target.closest('input')) return;
+  pDrag = { x: e.clientX, y: e.clientY, active: false, id: e.pointerId };
+});
+pager.addEventListener('pointermove', e => {
+  if (!pDrag || e.pointerId !== pDrag.id) return;
+  const dx = e.clientX - pDrag.x, dy = e.clientY - pDrag.y;
+  if (!pDrag.active) {
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) pDrag.active = true;
+    else if (Math.abs(dy) > 14) { pDrag = null; return; }
+    else return;
+  }
+  e.preventDefault();
+  pager.style.transition = 'none';
+  const base = -pageIndex * window.innerWidth;
+  let off = base + dx;
+  off = Math.min(0, Math.max(-window.innerWidth, off));
+  pager.style.transform = `translateX(${off}px)`;
+});
+function pagerEnd(e) {
+  if (!pDrag) return;
+  if (pDrag.active) {
+    const dx = e.clientX - pDrag.x;
+    if (dx < -60) goTo(pageIndex + 1); else if (dx > 60) goTo(pageIndex - 1); else goTo(pageIndex);
+  }
+  pDrag = null;
+}
+pager.addEventListener('pointerup', pagerEnd);
+pager.addEventListener('pointercancel', () => { goTo(pageIndex); pDrag = null; });
+
+/* ============================== add rows ============================== */
+document.querySelectorAll('.add-row').forEach(row => {
+  row.addEventListener('click', () => {
+    if (row.querySelector('input')) return;
+    const day = row.dataset.day;
+    row.innerHTML = `<input type="text" placeholder="+ New task" enterkeyhint="done" autocapitalize="sentences">`;
+    const inp = row.querySelector('input');
+    inp.focus();
+    const commit = () => {
+      const v = inp.value.trim();
+      if (v) {
+        const t = { id: uid(), text: v, done: false };
+        if (day === 'backlog') { t.perm = true; delete t.done; }
+        listFor(day).unshift(t);
+        save(); render(day);
+      }
+      row.innerHTML = `<span class="add-ph">+ New task</span>`;
+    };
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
+    inp.addEventListener('blur', commit);
+  });
+});
+
+/* ============================== edit mode ============================== */
+document.querySelectorAll('.btn-edit').forEach(b => {
+  b.addEventListener('click', () => {
+    const day = b.dataset.day;
+    editing[day] = !editing[day];
+    b.textContent = editing[day] ? 'Done' : 'Edit';
+    b.classList.toggle('active', editing[day]);
+    render(day);
+  });
+});
+
+/* ============================== backlog open/close ============================== */
+const backlogEl = document.getElementById('backlog');
+document.querySelectorAll('.btn-backlog').forEach(b => {
+  b.addEventListener('click', () => {
+    blOrigin = b.dataset.day;
+    blSelected.clear();
+    document.getElementById('bl-sub').textContent = 'Tap to select, then add to ' + blOrigin;
+    render('backlog'); updateAddbar();
+    backlogEl.classList.add('open');
+  });
+});
+document.getElementById('bl-done').addEventListener('click', () => {
+  backlogEl.classList.remove('open');
+  blSelected.clear(); updateAddbar();
+});
+function updateAddbar() {
+  const bar = document.getElementById('bl-addbar');
+  const n = blSelected.size;
+  if (n > 0) {
+    document.getElementById('bl-addbtn').textContent = `Add ${n} to ${blOrigin}`;
+    bar.classList.add('show');
+  } else bar.classList.remove('show');
+}
+document.getElementById('bl-addbtn').addEventListener('click', () => {
+  const ids = [...blSelected];
+  const picked = state.backlog.filter(t => blSelected.has(t.id));
+  // add copies to the origin day, at the top, preserving backlog order
+  const copies = picked.map(t => ({ id: uid(), text: t.text, done: false }));
+  listFor(blOrigin).unshift(...copies);
+  // non-permanent items leave the backlog when used
+  state.backlog = state.backlog.filter(t => !(blSelected.has(t.id) && !t.perm));
+  blSelected.clear();
+  save(); renderAll();
+  backlogEl.classList.remove('open');
+  goTo(blOrigin === 'today' ? 0 : 1, false);
+});
+
+/* ============================== task row gestures ============================== */
+let openActions = null;                  // li with actions revealed
+function closeActions() {
+  if (openActions) {
+    const c = openActions.querySelector('.t-content');
+    c.style.transform = '';
+    openActions = null;
+  }
+}
+document.addEventListener('pointerdown', e => {
+  if (openActions && !e.target.closest('.t-actions') && !openActions.contains(e.target)) closeActions();
+}, true);
+
+const LONG_MS = 420, ACT_W = () => { return 82 * (1 /*delete*/) + 82; }; // recomputed per row below
+
+document.querySelectorAll('ul.tasks').forEach(ul => {
+  let g = null;      // gesture info
+  let drag = null;   // reorder drag info
+
+  ul.addEventListener('pointerdown', e => {
+    const li = e.target.closest('li.task');
+    if (!li || e.target.closest('.t-actions')) return;
+    if (e.target.tagName === 'INPUT') return;
+    const day = li.dataset.day;
+    const onButton = !!e.target.closest('.t-move');
+    g = {
+      li, day, id: li.dataset.id, x: e.clientX, y: e.clientY, t: Date.now(),
+      mode: 'tap', onButton, pid: e.pointerId,
+      open: openActions === li
+    };
+    if (!onButton && !editing[day]) {
+      g.timer = setTimeout(() => { if (g && g.mode === 'tap') startDrag(g, e); }, LONG_MS);
+    }
+  });
+
+  ul.addEventListener('pointermove', e => {
+    if (!g || e.pointerId !== g.pid) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (g.mode === 'tap') {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2 && !g.onButton) {
+        clearTimeout(g.timer); g.mode = 'swipe';
+        g.li.setPointerCapture && g.li.setPointerCapture(e.pointerId);
+      } else if (Math.abs(dy) > 12) { clearTimeout(g.timer); g = null; return; }
+    }
+    if (g.mode === 'swipe') {
+      e.preventDefault();
+      const c = g.li.querySelector('.t-content');
+      const w = g.li.querySelector('.t-actions').getBoundingClientRect().width || 164;
+      let base = g.open ? -w : 0;
+      let off = Math.min(0, Math.max(-w - 30, base + dx));
+      c.style.transition = 'none';
+      c.style.transform = `translateX(${off}px)`;
+      g.actW = w;
+    }
+    if (g.mode === 'drag') moveDrag(g, e);
+  });
+
+  function endGesture(e) {
+    if (!g || (e.pointerId !== undefined && e.pointerId !== g.pid)) return;
+    clearTimeout(g.timer);
+    if (g.mode === 'tap') {
+      handleTap(g, e);
+    } else if (g.mode === 'swipe') {
+      const c = g.li.querySelector('.t-content');
+      const dx = e.clientX - g.x;
+      const w = g.actW || 164;
+      c.style.transition = '';
+      const shouldOpen = g.open ? dx < w * 0.5 : dx < -w * 0.4;
+      if (shouldOpen) {
+        c.style.transform = `translateX(${-w}px)`;
+        if (openActions && openActions !== g.li) closeActions();
+        openActions = g.li;
+      } else { c.style.transform = ''; if (openActions === g.li) openActions = null; }
+    } else if (g.mode === 'drag') {
+      endDrag(g);
+    }
+    g = null;
+  }
+  ul.addEventListener('pointerup', endGesture);
+  ul.addEventListener('pointercancel', endGesture);
+
+  /* ---------- long-press drag to reorder ---------- */
+  function startDrag(gg, e) {
+    closeActions();
+    gg.mode = 'drag';
+    const li = gg.li;
+    navigator.vibrate && navigator.vibrate(10);
+    const rows = [...ul.children];
+    gg.startIdx = rows.indexOf(li);
+    gg.curIdx = gg.startIdx;
+    gg.rowH = li.getBoundingClientRect().height;
+    li.classList.add('dragging');
+    rows.forEach(r => { if (r !== li) r.classList.add('shifting'); });
+    li.setPointerCapture && li.setPointerCapture(gg.pid);
+  }
+  function moveDrag(gg, e) {
+    e.preventDefault();
+    const dy = e.clientY - gg.y;
+    const li = gg.li;
+    li.querySelector('.t-content').style.transform = `translateY(${dy}px)`;
+    li.style.zIndex = 20;
+    const rows = [...ul.children];
+    let target = gg.startIdx + Math.round(dy / gg.rowH);
+    target = Math.max(0, Math.min(rows.length - 1, target));
+    if (target !== gg.curIdx) gg.curIdx = target;
+    rows.forEach((r, i) => {
+      if (r === li) return;
+      let shift = 0;
+      if (gg.curIdx < gg.startIdx && i >= gg.curIdx && i < gg.startIdx) shift = gg.rowH;
+      if (gg.curIdx > gg.startIdx && i > gg.startIdx && i <= gg.curIdx) shift = -gg.rowH;
+      r.querySelector('.t-content').style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  }
+  function endDrag(gg) {
+    const list = listFor(gg.day);
+    const item = list.splice(gg.startIdx, 1)[0];
+    list.splice(gg.curIdx, 0, item);
+    save(); render(gg.day);
+  }
+});
+
+/* ---------- taps ---------- */
+function handleTap(g, e) {
+  const day = g.day, li = g.li;
+  const list = listFor(day);
+  const t = list.find(x => x.id === g.id);
+  if (!t) return;
+
+  if (openActions) { closeActions(); return; }
+
+  // action buttons in the revealed strip
+  if (e.target.closest('.a-delete')) return; // handled by click below
+
+  if (e.target.closest('.t-move')) {
+    // move to the other day
+    const from = day, to = day === 'today' ? 'tomorrow' : 'today';
+    listFor(from).splice(list.indexOf(t), 1);
+    listFor(to).unshift(t); // keeps its crossed-out state
+    save(); render(from); render(to);
+    return;
+  }
+
+  if (editing[day]) { startRename(li, t, day); return; }
+
+  if (day === 'backlog') {
+    if (blSelected.has(t.id)) blSelected.delete(t.id); else blSelected.add(t.id);
+    li.classList.toggle('selected');
+    updateAddbar();
+    return;
+  }
+
+  // cross / uncross
+  t.done = !t.done;
+  save();
+  const txt = li.querySelector('.t-text');
+  if (t.done) {
+    li.classList.add('crossed', 'strike-anim');
+    txt.insertAdjacentHTML('beforeend', strikeSVG());
+  } else {
+    li.classList.remove('crossed', 'strike-anim');
+    const s = txt.querySelector('.t-strike'); s && s.remove();
+  }
+}
+
+function startRename(li, t, day) {
+  const span = li.querySelector('.t-text');
+  span.innerHTML = `<input type="text" value="${escapeHTML(t.text)}" enterkeyhint="done">`;
+  const inp = span.querySelector('input');
+  inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+  const commit = () => {
+    const v = inp.value.trim();
+    if (v) t.text = v;
+    save(); render(day);
+  };
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
+  inp.addEventListener('blur', commit);
+}
+
+/* ---------- action strip buttons (delete / to backlog) ---------- */
+document.addEventListener('click', e => {
+  const li = e.target.closest('li.task');
+  if (!li) return;
+  const day = li.dataset.day;
+  const list = listFor(day);
+  const idx = list.findIndex(x => x.id === li.dataset.id);
+  if (idx < 0) return;
+  if (e.target.closest('.a-delete')) {
+    openActions = null;
+    list.splice(idx, 1);
+    save(); render(day);
+    if (day === 'backlog') { blSelected.delete(li.dataset.id); updateAddbar(); }
+  } else if (e.target.closest('.a-backlog')) {
+    openActions = null;
+    const t = list.splice(idx, 1)[0];
+    state.backlog.unshift({ id: t.id, text: t.text, perm: false });
+    save(); render(day); render('backlog');
+  }
+});
+
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ============================== midnight rollover ============================== */
+function checkRollover() {
+  const cur = todayStr();
+  if (state.d !== cur) { rollover(state, cur); save(); renderAll(); }
+  scheduleMidnight();
+}
+let midnightTimer = null;
+function scheduleMidnight() {
+  clearTimeout(midnightTimer);
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
+  midnightTimer = setTimeout(checkRollover, next - now);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRollover(); });
+
+/* ============================== boot ============================== */
+load();
+renderAll();
+scheduleMidnight();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
