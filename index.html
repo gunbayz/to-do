@@ -46,6 +46,12 @@ input{-webkit-user-select:auto;user-select:auto}
 .tb-btn{font-family:var(--sans);font-size:17px;font-weight:600;color:var(--accent);
   background:transparent;border:none;padding:8px 6px;min-width:64px;cursor:pointer;line-height:1}
 .tb-btn:active{opacity:.6}
+.tb-spacer{min-width:64px}
+.fab-close{position:fixed;left:20px;bottom:calc(env(safe-area-inset-bottom) + 20px);
+  height:58px;padding:0 26px;border-radius:999px;background:#fff;color:var(--accent);
+  font-family:var(--sans);font-size:18px;font-weight:600;border:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(28,29,49,.12);cursor:pointer;z-index:40}
+.fab-close:active{opacity:.7}
 .tb-btn.active{color:#fff;background:var(--accent);border-radius:999px;padding:8px 14px}
 
 /* add row (revealed by the + button) */
@@ -164,7 +170,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 <section id="backlog">
   <div class="bl-scroll">
     <div class="topbar">
-      <button class="tb-btn" id="bl-done">Close</button>
+      <span class="tb-spacer"></span>
       <div class="titles">
         <h1>Backlog</h1>
         <div class="sub" id="bl-sub"></div>
@@ -175,6 +181,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
     <ul class="tasks" id="list-backlog"></ul>
   </div>
   <div id="bl-addbar"><button id="bl-addbtn"></button></div>
+  <button class="fab-close" id="bl-done">Close</button>
   <button class="fab" id="fab-backlog" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
 </section>
 
