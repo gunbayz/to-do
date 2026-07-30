@@ -41,9 +41,9 @@ input{-webkit-user-select:auto;user-select:auto}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;
   margin-bottom:18px}
 .topbar .titles{flex:1;text-align:center}
-.topbar h1{font-size:22px;font-weight:700;line-height:1.2}
-.topbar .date,.topbar .sub{font-size:13px;font-weight:500;color:var(--muted);margin-top:1px}
-.tb-btn{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--accent);
+.topbar h1{font-size:24px;font-weight:700;line-height:1.2}
+.topbar .date,.topbar .sub{font-size:14px;font-weight:500;color:var(--muted);margin-top:1px}
+.tb-btn{font-family:var(--sans);font-size:17px;font-weight:600;color:var(--accent);
   background:transparent;border:none;padding:8px 6px;min-width:64px;cursor:pointer;line-height:1}
 .tb-btn:active{opacity:.6}
 .tb-btn.active{color:#fff;background:var(--accent);border-radius:999px;padding:8px 14px}
@@ -51,9 +51,9 @@ input{-webkit-user-select:auto;user-select:auto}
 /* add row */
 .add-row{display:flex;align-items:center;min-height:52px;
   border-bottom:1px solid var(--line);
-  color:var(--muted);font-size:16px;font-weight:500;cursor:text}
+  color:var(--muted);font-size:18px;font-weight:500;cursor:text}
 .add-row input{flex:1;border:none;outline:none;background:transparent;font-family:var(--sans);
-  font-size:16px;font-weight:500;color:var(--ink);padding:0}
+  font-size:18px;font-weight:500;color:var(--ink);padding:0}
 .add-row input::placeholder{color:var(--muted)}
 
 /* task rows */
@@ -64,17 +64,17 @@ li.task.dragging{z-index:20;border-bottom-color:transparent}
 li.task.dragging .t-content{box-shadow:0 8px 22px rgba(28,29,49,.16);border-radius:12px}
 li.task.shifting .t-content{transition:transform .18s ease}
 .t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:0}
-.t-actions button{border:none;font-family:var(--sans);font-size:13px;font-weight:600;
+.t-actions button{border:none;font-family:var(--sans);font-size:14px;font-weight:600;
   width:76px;color:#fff;cursor:pointer}
 .t-actions .a-backlog{background:#b9bcd0}
 .t-actions .a-delete{background:#ff5c69}
 .t-content{position:relative;z-index:1;display:flex;align-items:center;gap:10px;
   min-height:52px;background:var(--bg);
   will-change:transform;transition:transform .22s cubic-bezier(.25,.8,.35,1)}
-.t-text{flex:1;font-size:16px;font-weight:500;line-height:1.35;padding:14px 0;
+.t-text{flex:1;font-size:18px;font-weight:500;line-height:1.35;padding:14px 0;
   position:relative;min-width:0;overflow-wrap:anywhere}
 .t-text input{width:100%;border:none;outline:none;background:transparent;
-  font-family:var(--sans);font-size:16px;font-weight:500;color:var(--ink)}
+  font-family:var(--sans);font-size:18px;font-weight:500;color:var(--ink)}
 li.task.crossed .t-text{color:var(--muted)}
 .t-strike{position:absolute;left:-2px;top:50%;height:8px;transform:translateY(-50%);
   width:calc(100% + 4px);pointer-events:none;overflow:visible}
@@ -107,7 +107,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   padding:14px 20px calc(env(safe-area-inset-bottom) + 22px);z-index:40;
   transform:translateY(130%);transition:transform .25s ease;pointer-events:none}
 #bl-addbar.show{transform:translateY(0);pointer-events:auto}
-#bl-addbar button{font-family:var(--sans);font-size:16px;font-weight:600;
+#bl-addbar button{font-family:var(--sans);font-size:18px;font-weight:600;
   background:var(--accent);color:#fff;border:none;border-radius:999px;
   padding:15px 28px;box-shadow:0 8px 24px rgba(109,77,242,.35);cursor:pointer}
 
