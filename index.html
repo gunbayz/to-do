@@ -48,10 +48,20 @@ input{-webkit-user-select:auto;user-select:auto}
 .tb-btn:active{opacity:.6}
 .tb-btn.active{color:#fff;background:var(--accent);border-radius:999px;padding:8px 14px}
 
-/* add row */
-.add-row{display:flex;align-items:center;min-height:52px;
+/* add row (revealed by the + button) */
+.add-row{display:none;align-items:center;min-height:52px;
   border-bottom:1px solid var(--line);
   color:var(--muted);font-size:18px;font-weight:500;cursor:text}
+.add-row.active{display:flex}
+
+/* floating + button */
+.fab{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom) + 24px);
+  width:58px;height:58px;border-radius:50%;background:var(--accent);border:none;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;
+  box-shadow:0 8px 24px rgba(109,77,242,.4)}
+.fab:active{transform:scale(.94)}
+.fab svg{width:26px;height:26px}
+.fab svg path{stroke:#fff;stroke-width:2.4;stroke-linecap:round}
 .add-row input{flex:1;border:none;outline:none;background:transparent;font-family:var(--sans);
   font-size:18px;font-weight:500;color:var(--ink);padding:0}
 .add-row input::placeholder{color:var(--muted)}
@@ -147,6 +157,8 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   </section>
 </div>
 
+<button class="fab" id="fab-day" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
+
 <!-- BACKLOG -->
 <section id="backlog">
   <div class="bl-scroll">
@@ -162,6 +174,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
     <ul class="tasks" id="list-backlog"></ul>
   </div>
   <div id="bl-addbar"><button id="bl-addbtn"></button></div>
+  <button class="fab" id="fab-backlog" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
 </section>
 
 <script>
@@ -290,7 +303,7 @@ document.querySelectorAll('.add-row').forEach(row => {
   row.addEventListener('click', () => {
     if (row.querySelector('input')) return;
     const day = row.dataset.day;
-    row.innerHTML = `<input type="text" placeholder="+ New task" enterkeyhint="done" autocapitalize="sentences">`;
+    row.innerHTML = `<input type="text" enterkeyhint="done" autocapitalize="sentences">`;
     const inp = row.querySelector('input');
     inp.focus();
     const commit = () => {
@@ -302,11 +315,23 @@ document.querySelectorAll('.add-row').forEach(row => {
         save(); render(day);
       }
       row.innerHTML = `<span class="add-ph">+ New task</span>`;
+      row.classList.remove('active');
     };
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
     inp.addEventListener('blur', commit);
   });
 });
+
+/* floating + buttons */
+function openAdd(day) {
+  const row = document.querySelector(`.add-row[data-day="${day}"]`);
+  if (day === 'backlog') document.querySelector('#backlog .bl-scroll').scrollTop = 0;
+  else document.getElementById('page-' + day).scrollTop = 0;
+  row.classList.add('active');
+  row.click();
+}
+document.getElementById('fab-day').addEventListener('click', () => openAdd(pageIndex ? 'tomorrow' : 'today'));
+document.getElementById('fab-backlog').addEventListener('click', () => openAdd('backlog'));
 
 /* ============================== edit mode ============================== */
 document.querySelectorAll('.btn-edit').forEach(b => {
