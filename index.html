@@ -55,7 +55,7 @@ input{-webkit-user-select:auto;user-select:auto}
 .add-row.active{display:flex}
 
 /* floating + button */
-.fab{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom) + 24px);
+.fab{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom) + 20px);
   width:58px;height:58px;border-radius:50%;background:var(--accent);border:none;
   display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;
   box-shadow:0 8px 24px rgba(109,77,242,.4)}
@@ -74,6 +74,7 @@ li.task.dragging{z-index:20;border-bottom-color:transparent}
 li.task.dragging .t-content{box-shadow:0 8px 22px rgba(28,29,49,.16);border-radius:12px}
 li.task.shifting .t-content{transition:transform .18s ease}
 .t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:0}
+#page-today .t-actions{inset:0 auto 0 0}  /* today: actions on the left, revealed by right-swipe */
 .t-actions button{border:none;font-family:var(--sans);font-size:14px;font-weight:600;
   width:76px;color:#fff;cursor:pointer}
 .t-actions .a-backlog{background:#b9bcd0}
@@ -114,12 +115,12 @@ li.task.selected .t-sel svg{opacity:1}
 li.task .t-sel svg path{stroke:#fff;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
 li.task.temp .t-text{font-style:italic;color:#7b7d92}
 #bl-addbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;
-  padding:14px 20px calc(env(safe-area-inset-bottom) + 22px);z-index:40;
+  padding:0 20px calc(env(safe-area-inset-bottom) + 20px);z-index:40;
   transform:translateY(130%);transition:transform .25s ease;pointer-events:none}
 #bl-addbar.show{transform:translateY(0);pointer-events:auto}
 #bl-addbar button{font-family:var(--sans);font-size:18px;font-weight:600;
   background:var(--accent);color:#fff;border:none;border-radius:999px;
-  padding:15px 28px;box-shadow:0 8px 24px rgba(109,77,242,.35);cursor:pointer}
+  height:58px;padding:0 30px;box-shadow:0 8px 24px rgba(109,77,242,.35);cursor:pointer}
 
 /* helper */
 .hidden{display:none!important}
@@ -269,7 +270,7 @@ goTo(0, false);
 
 let pDrag = null;
 pager.addEventListener('pointerdown', e => {
-  if (e.target.closest('li.task') || e.target.closest('button') || e.target.closest('.add-row') || e.target.closest('input')) return;
+  if (e.target.closest('button') || e.target.closest('input')) return;
   pDrag = { x: e.clientX, y: e.clientY, active: false, id: e.pointerId };
 });
 pager.addEventListener('pointermove', e => {
@@ -366,6 +367,7 @@ function updateAddbar() {
     document.getElementById('bl-addbtn').textContent = `Add ${n} to ${blOrigin}`;
     bar.classList.add('show');
   } else bar.classList.remove('show');
+  document.getElementById('fab-backlog').classList.toggle('hidden', n > 0);
 }
 document.getElementById('bl-addbtn').addEventListener('click', () => {
   const ids = [...blSelected];
@@ -409,7 +411,8 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     g = {
       li, day, id: li.dataset.id, x: e.clientX, y: e.clientY, t: Date.now(),
       mode: 'tap', onButton, pid: e.pointerId,
-      open: openActions === li
+      open: openActions === li,
+      dir: day === 'today' ? 1 : -1   // direction that reveals actions
     };
     if (!onButton && !editing[day]) {
       g.timer = setTimeout(() => { if (g && g.mode === 'tap') startDrag(g, e); }, LONG_MS);
@@ -421,16 +424,23 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     const dx = e.clientX - g.x, dy = e.clientY - g.y;
     if (g.mode === 'tap') {
       if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2 && !g.onButton) {
-        clearTimeout(g.timer); g.mode = 'swipe';
-        g.li.setPointerCapture && g.li.setPointerCapture(e.pointerId);
+        clearTimeout(g.timer);
+        const opening = dx * g.dir > 0;
+        if (g.open || opening) {
+          g.mode = 'swipe';
+          pDrag = null;   // this gesture belongs to the row, not the pager
+          g.li.setPointerCapture && g.li.setPointerCapture(e.pointerId);
+        } else { g = null; return; }   // paging direction: let the pager take it
       } else if (Math.abs(dy) > 12) { clearTimeout(g.timer); g = null; return; }
     }
     if (g.mode === 'swipe') {
       e.preventDefault();
       const c = g.li.querySelector('.t-content');
       const w = g.li.querySelector('.t-actions').getBoundingClientRect().width || 164;
-      let base = g.open ? -w : 0;
-      let off = Math.min(0, Math.max(-w - 30, base + dx));
+      const base = g.open ? g.dir * w : 0;
+      const raw = base + dx;
+      const off = g.dir > 0 ? Math.max(0, Math.min(w + 30, raw))
+                            : Math.min(0, Math.max(-w - 30, raw));
       c.style.transition = 'none';
       c.style.transform = `translateX(${off}px)`;
       g.actW = w;
@@ -445,12 +455,12 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       handleTap(g, e);
     } else if (g.mode === 'swipe') {
       const c = g.li.querySelector('.t-content');
-      const dx = e.clientX - g.x;
+      const d = (e.clientX - g.x) * g.dir;
       const w = g.actW || 164;
       c.style.transition = '';
-      const shouldOpen = g.open ? dx < w * 0.5 : dx < -w * 0.4;
+      const shouldOpen = g.open ? d > -w * 0.5 : d > w * 0.4;
       if (shouldOpen) {
-        c.style.transform = `translateX(${-w}px)`;
+        c.style.transform = `translateX(${g.dir * w}px)`;
         if (openActions && openActions !== g.li) closeActions();
         openActions = g.li;
       } else { c.style.transform = ''; if (openActions === g.li) openActions = null; }
@@ -466,6 +476,7 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
   function startDrag(gg, e) {
     closeActions();
     gg.mode = 'drag';
+    pDrag = null;
     const li = gg.li;
     navigator.vibrate && navigator.vibrate(10);
     const rows = [...ul.children];
