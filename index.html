@@ -115,6 +115,8 @@ li.task.dragging .t-actions{display:none}
 .t-actions button svg circle{fill:#fff}
 .t-actions .a-backlog{background:var(--accent)}
 .t-actions .a-delete{background:#ff3b30}
+/* no divider line under a row whose action buttons are showing */
+li.task.acts-open{border-bottom-color:transparent}
 .t-content{position:relative;z-index:1;display:flex;align-items:center;gap:10px;
   min-height:52px;background:var(--bg);
   will-change:transform;transition:transform .22s cubic-bezier(.25,.8,.35,1)}
@@ -470,6 +472,7 @@ function closeActions() {
     if (a) a.style.transform = '';
     const c = openActions.querySelector('.t-content');
     if (c) c.style.transform = '';
+    openActions.classList.remove('acts-open');
     openActions = null;
   }
 }
@@ -539,11 +542,9 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       const p = Math.max(0, Math.min(1, (g.open ? 1 : 0) + d / w));
       act.style.transition = 'none';
       act.style.transform = `translateX(${(g.dir > 0 ? -1 : 1) * (1 - p) * 110}%)`;
-      if (g.dir > 0) { // today: text slides right along with the strip
-        const c = g.li.querySelector('.t-content');
-        c.style.transition = 'none';
-        c.style.transform = `translateX(${p * w}px)`;
-      }
+      const c = g.li.querySelector('.t-content'); // text slides along with the strip
+      c.style.transition = 'none';
+      c.style.transform = `translateX(${g.dir * p * w}px)`;
       g.actW = w;
     }
     if (g.mode === 'drag') moveDrag(g, e);
@@ -570,11 +571,13 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       const shouldOpen = g.open ? d > -w * 0.5 : d > w * 0.4;
       if (shouldOpen) {
         act.style.transform = 'translateX(0)';
-        if (g.dir > 0) cont.style.transform = `translateX(${w}px)`;
+        cont.style.transform = `translateX(${g.dir * w}px)`;
+        g.li.classList.add('acts-open');
         if (openActions && openActions !== g.li) closeActions();
         openActions = g.li;
       } else {
         act.style.transform = ''; cont.style.transform = '';
+        g.li.classList.remove('acts-open');
         if (openActions === g.li) openActions = null;
       }
     } else if (g.mode === 'drag') {
@@ -662,17 +665,46 @@ function handleTap(g, e) {
     return;
   }
 
-  // cross / uncross, then re-slot: crossed sink to the bottom,
-  // un-crossed land at the bottom of the active tasks
-  t.done = !t.done;
-  list.splice(list.indexOf(t), 1);
-  if (t.done) {
-    list.push(t);
-  } else {
+  // cross / uncross, then re-slot at the active/crossed boundary:
+  // crossing → top of the crossed group; un-crossing → bottom of the active group
+  animateReorder(day, () => {
+    t.done = !t.done;
+    list.splice(list.indexOf(t), 1);
     const firstDone = list.findIndex(x => x.done);
     if (firstDone === -1) list.push(t); else list.splice(firstDone, 0, t);
-  }
-  save(); render(day);
+    save();
+  });
+}
+
+/* FLIP animation: re-render, then let rows glide from old to new position */
+function animateReorder(day, mutate) {
+  const ul = document.getElementById('list-' + day);
+  const before = {};
+  [...ul.children].forEach(li => { before[li.dataset.id] = li.getBoundingClientRect().top; });
+  mutate();
+  render(day);
+  ul.classList.add('reordering');   // rows may render outside their slot while gliding
+  const moved = [];
+  [...ul.children].forEach(li => {
+    const old = before[li.dataset.id];
+    if (old === undefined) return;
+    const d = old - li.getBoundingClientRect().top;
+    if (!d) return;
+    const c = li.querySelector('.t-content');
+    c.style.transition = 'none';
+    c.style.transform = `translate3d(0,${d}px,0)`;
+    moved.push(c);
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    moved.forEach(c => {
+      c.style.transition = 'transform .3s cubic-bezier(.3,.8,.3,1)';
+      c.style.transform = '';
+    });
+  }));
+  setTimeout(() => {
+    moved.forEach(c => { c.style.transition = ''; c.style.transform = ''; });
+    ul.classList.remove('reordering');
+  }, 340);
 }
 
 function startRename(li, t, day) {
