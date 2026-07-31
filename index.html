@@ -29,9 +29,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);
   overscroll-behavior:none;touch-action:manipulation;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* body is fixed so iOS can never scroll the document when the keyboard opens.
-   100vh (not bottom:0) makes it cover the full screen incl. the home-indicator
-   area, so there is no uncovered strip at the bottom. UI is anchored to body. */
-body{position:fixed;top:0;left:0;width:100vw;height:100vh;
+   Its height is set from JS (--vh = real window height) so it exactly covers
+   the screen — no uncovered strip, nothing hanging below. */
+body{position:fixed;top:0;left:0;width:100%;height:calc(var(--vh, 1vh) * 100);
   font-family:var(--sans);color:var(--ink)}
 input{-webkit-user-select:auto;user-select:auto}
 
@@ -42,16 +42,17 @@ input{-webkit-user-select:auto;user-select:auto}
   touch-action:pan-y;overscroll-behavior:contain}
 
 /* top bar */
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;
-  margin-bottom:18px}
-.topbar .titles{flex:1;text-align:center}
+.topbar{position:relative;display:flex;align-items:center;justify-content:space-between;
+  gap:8px;min-height:56px;margin-bottom:12px}
+.topbar .titles{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  text-align:center;pointer-events:none}
+.topbar .tb-btn{position:relative;z-index:1}
 .topbar h1{font-size:24px;font-weight:700;line-height:1.2}
 .topbar .date,.topbar .sub{font-size:14px;font-weight:500;color:var(--muted);margin-top:1px}
 .tb-btn{font-family:var(--sans);font-size:17px;font-weight:600;color:var(--accent);
   background:transparent;border:none;padding:8px 6px;min-width:64px;cursor:pointer;line-height:1}
 .tb-btn:active{opacity:.6}
 .tb-spacer{min-width:64px}
-.tb-btn.active{color:#fff;background:var(--accent);border-radius:999px;padding:8px 14px}
 
 /* add row (revealed by the + button) */
 .add-row{display:none;align-items:center;min-height:52px;
@@ -78,8 +79,13 @@ li.task{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
 li.task.dragging{z-index:20;border-bottom-color:transparent}
 li.task.dragging .t-content{box-shadow:0 8px 22px rgba(28,29,49,.16);border-radius:12px}
 li.task.shifting .t-content{transition:transform .18s ease}
-.t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:0;padding-left:12px}
-#page-today .t-actions{inset:0 auto 0 0;padding-left:0;padding-right:12px}  /* today: actions on the left, revealed by right-swipe */
+/* action strip slides in OVER the row; the task text never moves */
+.t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:2;padding-left:12px;
+  transform:translateX(110%);transition:transform .22s cubic-bezier(.25,.8,.35,1);
+  will-change:transform}
+#page-today .t-actions{inset:0 auto 0 0;padding-left:0;padding-right:12px;
+  transform:translateX(-110%)}  /* today: strip on the left, revealed by right-swipe */
+li.task.dragging .t-actions{display:none}
 .t-actions button{border:none;font-family:var(--sans);font-size:14px;font-weight:600;
   width:76px;color:#fff;cursor:pointer}
 .t-actions .a-backlog{background:#b9bcd0}
@@ -315,6 +321,8 @@ pager.addEventListener('pointerup', pagerEnd);
 pager.addEventListener('pointercancel', () => { goTo(pageIndex); pDrag = null; });
 
 /* ============================== add rows ============================== */
+let blCancel = false;
+const blAddBtn = document.getElementById('bl-add');
 document.querySelectorAll('.add-row').forEach(row => {
   row.addEventListener('click', () => {
     if (row.querySelector('input')) return;
@@ -324,7 +332,8 @@ document.querySelectorAll('.add-row').forEach(row => {
     inp.focus();
     const commit = () => {
       const v = inp.value.trim();
-      if (v) {
+      const cancelled = day === 'backlog' && blCancel;
+      if (v && !cancelled) {
         const t = { id: uid(), text: v, done: false };
         if (day === 'backlog') { t.perm = true; delete t.done; }
         listFor(day).unshift(t);
@@ -332,6 +341,7 @@ document.querySelectorAll('.add-row').forEach(row => {
       }
       row.innerHTML = `<span class="add-ph">+ New task</span>`;
       row.classList.remove('active');
+      if (day === 'backlog') blAddBtn.textContent = 'Add';
     };
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
     inp.addEventListener('blur', commit);
@@ -354,7 +364,6 @@ document.querySelectorAll('.btn-edit').forEach(b => {
     const day = b.dataset.day;
     editing[day] = !editing[day];
     b.textContent = editing[day] ? 'Done' : 'Edit';
-    b.classList.toggle('active', editing[day]);
     render(day);
   });
 });
@@ -377,7 +386,15 @@ function closeBacklog() {
   blSelected.clear(); updateAddbar();
 }
 scrimEl.addEventListener('click', closeBacklog);
-document.getElementById('bl-add').addEventListener('click', () => openAdd('backlog'));
+/* Add ↔ Cancel: while the input is open the button reads Cancel and discards */
+blAddBtn.addEventListener('pointerdown', () => {
+  if (document.querySelector('.add-row[data-day="backlog"] input')) blCancel = true;
+});
+blAddBtn.addEventListener('click', () => {
+  if (blCancel) { blCancel = false; return; }  // was a cancel; commit already cleaned up
+  openAdd('backlog');
+  blAddBtn.textContent = 'Cancel';
+});
 
 /* drag the sheet down anywhere to dismiss (list must be scrolled to top) */
 (() => {
@@ -440,8 +457,8 @@ document.getElementById('bl-addbtn').addEventListener('click', () => {
 let openActions = null;                  // li with actions revealed
 function closeActions() {
   if (openActions) {
-    const c = openActions.querySelector('.t-content');
-    c.style.transform = '';
+    const a = openActions.querySelector('.t-actions');
+    if (a) a.style.transform = '';
     openActions = null;
   }
 }
@@ -488,14 +505,12 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     }
     if (g.mode === 'swipe') {
       e.preventDefault();
-      const c = g.li.querySelector('.t-content');
-      const w = g.li.querySelector('.t-actions').getBoundingClientRect().width || 164;
-      const base = g.open ? g.dir * w : 0;
-      const raw = base + dx;
-      const off = g.dir > 0 ? Math.max(0, Math.min(w + 30, raw))
-                            : Math.min(0, Math.max(-w - 30, raw));
-      c.style.transition = 'none';
-      c.style.transform = `translateX(${off}px)`;
+      const act = g.li.querySelector('.t-actions');
+      const w = act.getBoundingClientRect().width || 164;
+      const d = dx * g.dir;
+      const p = Math.max(0, Math.min(1, (g.open ? 1 : 0) + d / w));
+      act.style.transition = 'none';
+      act.style.transform = `translateX(${(g.dir > 0 ? -1 : 1) * (1 - p) * 110}%)`;
       g.actW = w;
     }
     if (g.mode === 'drag') moveDrag(g, e);
@@ -507,16 +522,16 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     if (g.mode === 'tap') {
       handleTap(g, e);
     } else if (g.mode === 'swipe') {
-      const c = g.li.querySelector('.t-content');
+      const act = g.li.querySelector('.t-actions');
       const d = (e.clientX - g.x) * g.dir;
       const w = g.actW || 164;
-      c.style.transition = '';
+      act.style.transition = '';
       const shouldOpen = g.open ? d > -w * 0.5 : d > w * 0.4;
       if (shouldOpen) {
-        c.style.transform = `translateX(${g.dir * w}px)`;
+        act.style.transform = 'translateX(0)';
         if (openActions && openActions !== g.li) closeActions();
         openActions = g.li;
-      } else { c.style.transform = ''; if (openActions === g.li) openActions = null; }
+      } else { act.style.transform = ''; if (openActions === g.li) openActions = null; }
     } else if (g.mode === 'drag') {
       endDrag(g);
     }
@@ -681,6 +696,15 @@ function scheduleMidnight() {
   midnightTimer = setTimeout(checkRollover, next - now);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRollover(); });
+
+/* real viewport height → --vh, so the app covers the screen exactly */
+const setVH = () => document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+setVH();
+window.addEventListener('resize', () => {
+  const a = document.activeElement;
+  if (!a || a.tagName !== 'INPUT') setVH();
+});
+window.addEventListener('orientationchange', () => setTimeout(setVH, 300));
 
 /* ============================== boot ============================== */
 load();
