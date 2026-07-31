@@ -59,17 +59,21 @@ input{-webkit-user-select:auto;user-select:auto}
   border-bottom:1px solid var(--line);
   color:var(--muted);font-size:18px;font-weight:500;cursor:text}
 .add-row.active{display:flex}
+#backlog .add-row{display:flex}  /* routines: the + New task row is always visible */
 
-/* floating + button */
+/* floating buttons — iOS 26 liquid-glass style */
 .fab{position:absolute;right:20px;bottom:20px;
-  width:58px;height:58px;border-radius:50%;background:var(--accent);border:none;
+  width:58px;height:58px;border-radius:50%;border:1px solid rgba(255,255,255,.7);
+  background:rgba(255,255,255,.55);
+  -webkit-backdrop-filter:blur(18px) saturate(1.8);
+  backdrop-filter:blur(18px) saturate(1.8);
   display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;
-  box-shadow:0 8px 24px rgba(109,77,242,.4)}
+  box-shadow:0 8px 24px rgba(28,29,49,.18), inset 0 1px 1px rgba(255,255,255,.9)}
 .fab:active{transform:scale(.94)}
 .fab-left{right:auto;left:20px}
-.fab-left svg path{stroke:#fff;stroke-width:2.4;stroke-linecap:round}
 .fab svg{width:26px;height:26px}
-.fab svg path{stroke:#fff;stroke-width:2.4;stroke-linecap:round}
+.fab svg path{stroke:var(--accent);stroke-width:2.4;stroke-linecap:round}
+.fab svg circle{fill:var(--accent)}
 .add-row input{flex:1;border:none;outline:none;background:transparent;font-family:var(--sans);
   font-size:18px;font-weight:500;color:var(--ink);padding:0}
 .add-row input::placeholder{color:var(--muted)}
@@ -78,6 +82,12 @@ input{-webkit-user-select:auto;user-select:auto}
 ul.tasks{list-style:none}
 li.task{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
   touch-action:pan-y}
+/* lifted rows get side padding via negative margins so the highlight
+   extends past the text while the text itself stays aligned */
+li.task.pressed{overflow:visible}
+li.task.pressed .t-actions{display:none}
+li.task.pressed .t-content,
+li.task.dragging .t-content{margin:0 -14px;padding:0 14px}
 li.task.pressed .t-content{background:var(--card);border-radius:12px}
 li.task.dragging{z-index:20;border-bottom-color:transparent}
 li.task.dragging .t-content{background:var(--bg);box-shadow:0 8px 22px rgba(28,29,49,.16);
@@ -112,7 +122,7 @@ li.task.crossed .t-text{color:var(--muted)}
 li.task .strike-anim path{stroke-dasharray:1;stroke-dashoffset:1;
   animation:strike .3s ease-out forwards}
 @keyframes strike{to{stroke-dashoffset:0}}
-.t-move{flex-shrink:0;border:none;background:transparent;padding:14px 10px;cursor:pointer}
+.t-move{flex-shrink:0;border:none;background:transparent;padding:14px 0 14px 10px;cursor:pointer}
 .t-move svg{width:26px;height:18px;display:block}
 .t-move svg path{stroke:#b9bcd0;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .mirror{transform:scaleX(-1)}
@@ -181,7 +191,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 </div>
 
 <button class="fab" id="fab-day" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
-<button class="fab fab-left" id="fab-bl-open" aria-label="Open backlog"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12" fill="none"/><circle cx="4" cy="6" r="1.4" fill="#fff"/><circle cx="4" cy="12" r="1.4" fill="#fff"/><circle cx="4" cy="18" r="1.4" fill="#fff"/></svg></button>
+<button class="fab fab-left" id="fab-bl-open" aria-label="Open routines"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12" fill="none"/><circle cx="4" cy="6" r="1.4" fill="#fff"/><circle cx="4" cy="12" r="1.4" fill="#fff"/><circle cx="4" cy="18" r="1.4" fill="#fff"/></svg></button>
 
 <!-- BACKLOG -->
 <div id="bl-scrim"></div>
@@ -189,9 +199,8 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   <div class="bl-head">
     <div class="grabber"></div>
     <div class="topbar">
-      <button class="tb-btn" id="bl-add">Add</button>
       <div class="titles">
-        <h1>Backlog</h1>
+        <h1>Routines</h1>
       </div>
     </div>
   </div>
@@ -256,7 +265,7 @@ function rowHTML(t, day) {
   const isBL = day === 'backlog';
   return `<li class="task ${t.done ? 'crossed' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}">
     <div class="t-actions">
-      ${isBL ? '' : '<button class="a-backlog">backlog</button>'}
+      ${isBL ? '' : '<button class="a-backlog">routines</button>'}
       <button class="a-delete">delete</button>
     </div>
     <div class="t-content">
@@ -345,8 +354,6 @@ pager.addEventListener('pointerup', pagerEnd);
 pager.addEventListener('pointercancel', () => { goTo(pageIndex); pDrag = null; });
 
 /* ============================== add rows ============================== */
-let blCancel = false;
-const blAddBtn = document.getElementById('bl-add');
 document.querySelectorAll('.add-row').forEach(row => {
   row.addEventListener('click', () => {
     if (row.querySelector('input')) return;
@@ -356,8 +363,7 @@ document.querySelectorAll('.add-row').forEach(row => {
     inp.focus();
     const commit = () => {
       const v = inp.value.trim();
-      const cancelled = day === 'backlog' && blCancel;
-      if (v && !cancelled) {
+      if (v) {
         const t = { id: uid(), text: v, done: false };
         if (day === 'backlog') { t.perm = true; delete t.done; }
         listFor(day).unshift(t);
@@ -365,7 +371,6 @@ document.querySelectorAll('.add-row').forEach(row => {
       }
       row.innerHTML = `<span class="add-ph">+ New task</span>`;
       row.classList.remove('active');
-      if (day === 'backlog') blAddBtn.textContent = 'Add';
     };
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
     inp.addEventListener('blur', commit);
@@ -398,15 +403,6 @@ function closeBacklog() {
   blSelected.clear(); updateAddbar();
 }
 scrimEl.addEventListener('click', closeBacklog);
-/* Add ↔ Cancel: while the input is open the button reads Cancel and discards */
-blAddBtn.addEventListener('pointerdown', () => {
-  if (document.querySelector('.add-row[data-day="backlog"] input')) blCancel = true;
-});
-blAddBtn.addEventListener('click', () => {
-  if (blCancel) { blCancel = false; return; }  // was a cancel; commit already cleaned up
-  openAdd('backlog');
-  blAddBtn.textContent = 'Cancel';
-});
 
 /* drag the sheet down anywhere to dismiss (list must be scrolled to top) */
 (() => {
