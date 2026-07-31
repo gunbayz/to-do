@@ -29,9 +29,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);
   overscroll-behavior:none;touch-action:manipulation;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* body is fixed so iOS can never scroll the document when the keyboard opens.
-   Its height is set from JS (--vh = real window height) so it exactly covers
-   the screen — no uncovered strip, nothing hanging below. */
-body{position:fixed;top:0;left:0;width:100%;height:calc(var(--vh, 1vh) * 100);
+   100dvh (dynamic viewport height) covers the full screen incl. the
+   home-indicator area — same approach as the cookbook app. */
+body{position:fixed;top:0;left:0;width:100%;height:100vh;height:100dvh;
   font-family:var(--sans);color:var(--ink)}
 input{-webkit-user-select:auto;user-select:auto}
 
@@ -709,15 +709,6 @@ function scheduleMidnight() {
   midnightTimer = setTimeout(checkRollover, next - now);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRollover(); });
-
-/* real viewport height → --vh, so the app covers the screen exactly */
-const setVH = () => document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
-setVH();
-window.addEventListener('resize', () => {
-  const a = document.activeElement;
-  if (!a || a.tagName !== 'INPUT') setVH();
-});
-window.addEventListener('orientationchange', () => setTimeout(setVH, 300));
 
 /* ============================== boot ============================== */
 load();
