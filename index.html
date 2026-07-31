@@ -66,6 +66,8 @@ input{-webkit-user-select:auto;user-select:auto}
   display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;
   box-shadow:0 8px 24px rgba(109,77,242,.4)}
 .fab:active{transform:scale(.94)}
+.fab-left{right:auto;left:20px}
+.fab-left svg path{stroke:#fff;stroke-width:2.4;stroke-linecap:round}
 .fab svg{width:26px;height:26px}
 .fab svg path{stroke:#fff;stroke-width:2.4;stroke-linecap:round}
 .add-row input{flex:1;border:none;outline:none;background:transparent;font-family:var(--sans);
@@ -76,8 +78,10 @@ input{-webkit-user-select:auto;user-select:auto}
 ul.tasks{list-style:none}
 li.task{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
   touch-action:pan-y}
+li.task.pressed .t-content{background:var(--card);border-radius:12px}
 li.task.dragging{z-index:20;border-bottom-color:transparent}
-li.task.dragging .t-content{box-shadow:0 8px 22px rgba(28,29,49,.16);border-radius:12px}
+li.task.dragging .t-content{background:var(--bg);box-shadow:0 8px 22px rgba(28,29,49,.16);
+  border-radius:12px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 li.task.shifting .t-content{transition:transform .18s ease}
 /* action strip slides in OVER the row; the task text never moves */
 .t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:2;padding-left:12px;
@@ -108,7 +112,6 @@ li.task .strike-anim path{stroke-dasharray:1;stroke-dashoffset:1;
 .t-move svg{width:26px;height:18px;display:block}
 .t-move svg path{stroke:#b9bcd0;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .mirror{transform:scaleX(-1)}
-li.task.edit-mode .t-move{opacity:.25;pointer-events:none}
 
 /* ===== backlog sheet ===== */
 #bl-scrim{position:absolute;inset:0;background:rgba(28,29,49,.32);z-index:29;
@@ -124,7 +127,7 @@ li.task.edit-mode .t-move{opacity:.25;pointer-events:none}
 .bl-head .grabber{width:38px;height:5px;border-radius:3px;background:#d9dbe6;
   margin:0 auto 12px}
 #backlog .bl-scroll{flex:1;overflow-y:auto;position:relative;
-  overscroll-behavior:contain;padding:0 20px 170px 20px}
+  overscroll-behavior:contain;padding:0 20px 96px 20px}
 li.task .t-sel{flex-shrink:0;width:26px;height:26px;border:1.5px solid #d9dbe6;
   border-radius:50%;margin-right:4px;display:flex;align-items:center;justify-content:center;
   transition:all .15s;background:#fff}
@@ -151,12 +154,10 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   <!-- TODAY -->
   <section class="page" id="page-today">
     <div class="topbar">
-      <button class="tb-btn btn-backlog" data-day="today">Backlog</button>
       <div class="titles">
         <h1>Today</h1>
         <div class="date" id="date-today"></div>
       </div>
-      <button class="tb-btn btn-edit" data-day="today">Edit</button>
     </div>
     <div class="add-row" data-day="today"><span class="add-ph">+ New task</span></div>
     <ul class="tasks" id="list-today"></ul>
@@ -165,12 +166,10 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   <!-- TOMORROW -->
   <section class="page" id="page-tomorrow">
     <div class="topbar">
-      <button class="tb-btn btn-backlog" data-day="tomorrow">Backlog</button>
       <div class="titles">
         <h1>Tomorrow</h1>
         <div class="date" id="date-tomorrow"></div>
       </div>
-      <button class="tb-btn btn-edit" data-day="tomorrow">Edit</button>
     </div>
     <div class="add-row" data-day="tomorrow"><span class="add-ph">+ New task</span></div>
     <ul class="tasks" id="list-tomorrow"></ul>
@@ -178,6 +177,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 </div>
 
 <button class="fab" id="fab-day" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
+<button class="fab fab-left" id="fab-bl-open" aria-label="Open backlog"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12" fill="none"/><circle cx="4" cy="6" r="1.4" fill="#fff"/><circle cx="4" cy="12" r="1.4" fill="#fff"/><circle cx="4" cy="18" r="1.4" fill="#fff"/></svg></button>
 
 <!-- BACKLOG -->
 <div id="bl-scrim"></div>
@@ -189,7 +189,6 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
       <div class="titles">
         <h1>Backlog</h1>
       </div>
-      <button class="tb-btn btn-edit" data-day="backlog">Edit</button>
     </div>
   </div>
   <div class="bl-scroll">
@@ -237,9 +236,9 @@ function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
 
 /* ============================== rendering ============================== */
 const fmt = d => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-let editing = { today: false, tomorrow: false, backlog: false };
 let blOrigin = 'today';          // which day backlog was opened from
 let blSelected = new Set();
+let rowDragging = false;         // a row is being long-pressed / reordered
 
 function strikeSVG() {
   return `<svg class="t-strike" viewBox="0 0 300 8" preserveAspectRatio="none">
@@ -251,7 +250,7 @@ const CHECK = `<svg viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 5"/></svg>`
 
 function rowHTML(t, day) {
   const isBL = day === 'backlog';
-  return `<li class="task ${t.done ? 'crossed' : ''} ${editing[day] ? 'edit-mode' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}">
+  return `<li class="task ${t.done ? 'crossed' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}">
     <div class="t-actions">
       ${isBL ? '' : '<button class="a-backlog">backlog</button>'}
       <button class="a-delete">delete</button>
@@ -358,27 +357,15 @@ function openAdd(day) {
 }
 document.getElementById('fab-day').addEventListener('click', () => openAdd(pageIndex ? 'tomorrow' : 'today'));
 
-/* ============================== edit mode ============================== */
-document.querySelectorAll('.btn-edit').forEach(b => {
-  b.addEventListener('click', () => {
-    const day = b.dataset.day;
-    editing[day] = !editing[day];
-    b.textContent = editing[day] ? 'Done' : 'Edit';
-    render(day);
-  });
-});
-
 /* ============================== backlog sheet open/close ============================== */
 const backlogEl = document.getElementById('backlog');
 const scrimEl = document.getElementById('bl-scrim');
-document.querySelectorAll('.btn-backlog').forEach(b => {
-  b.addEventListener('click', () => {
-    blOrigin = b.dataset.day;
-    blSelected.clear();
-    render('backlog'); updateAddbar();
-    backlogEl.classList.add('open');
-    scrimEl.classList.add('show');
-  });
+document.getElementById('fab-bl-open').addEventListener('click', () => {
+  blOrigin = pageIndex ? 'tomorrow' : 'today';
+  blSelected.clear();
+  render('backlog'); updateAddbar();
+  backlogEl.classList.add('open');
+  scrimEl.classList.add('show');
 });
 function closeBacklog() {
   backlogEl.classList.remove('open');
@@ -408,6 +395,7 @@ blAddBtn.addEventListener('click', () => {
   });
   backlogEl.addEventListener('pointermove', e => {
     if (!sd || e.pointerId !== sd.pid) return;
+    if (rowDragging) { sd = null; return; }
     if (!sd.active) {
       const dy = e.clientY - sd.y, dx = e.clientX - sd.x;
       if (dy > 10 && dy > Math.abs(dx) * 1.2 && scroller.scrollTop <= 0) {
@@ -486,14 +474,31 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       open: openActions === li,
       dir: day === 'today' ? 1 : -1   // direction that reveals actions
     };
-    if (!onButton && !editing[day]) {
-      g.timer = setTimeout(() => { if (g && g.mode === 'tap') startDrag(g, e); }, LONG_MS);
+    if (!onButton) {
+      g.timer = setTimeout(() => {
+        if (g && g.mode === 'tap') {
+          g.mode = 'press';           // release = rename, move = reorder
+          rowDragging = true;
+          pDrag = null;
+          navigator.vibrate && navigator.vibrate(8);
+          g.li.classList.add('pressed');
+        }
+      }, LONG_MS);
     }
   });
+
+  // block native scrolling while a row is lifted / being reordered
+  ul.addEventListener('touchmove', e => {
+    if (g && (g.mode === 'press' || g.mode === 'drag')) e.preventDefault();
+  }, { passive: false });
 
   ul.addEventListener('pointermove', e => {
     if (!g || e.pointerId !== g.pid) return;
     const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (g.mode === 'press') {
+      if (Math.abs(dy) > 6) startDrag(g, e);
+      else return;
+    }
     if (g.mode === 'tap') {
       if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2 && !g.onButton) {
         clearTimeout(g.timer);
@@ -526,8 +531,14 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
   function endGesture(e) {
     if (!g || (e.pointerId !== undefined && e.pointerId !== g.pid)) return;
     clearTimeout(g.timer);
+    g.li.classList.remove('pressed');
+    rowDragging = false;
     if (g.mode === 'tap') {
       handleTap(g, e);
+    } else if (g.mode === 'press') {
+      // long-press released without moving → rename
+      const t = listFor(g.day).find(x => x.id === g.id);
+      if (t) startRename(g.li, t, g.day);
     } else if (g.mode === 'swipe') {
       const act = g.li.querySelector('.t-actions');
       const cont = g.li.querySelector('.t-content');
@@ -557,14 +568,19 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
   function startDrag(gg, e) {
     closeActions();
     gg.mode = 'drag';
+    rowDragging = true;
     pDrag = null;
     const li = gg.li;
+    li.classList.remove('pressed');
     navigator.vibrate && navigator.vibrate(10);
     const rows = [...ul.children];
     gg.startIdx = rows.indexOf(li);
     gg.curIdx = gg.startIdx;
     gg.rowH = li.getBoundingClientRect().height;
+    gg.y = e.clientY;                 // rebase so the row doesn't jump
     li.classList.add('dragging');
+    const c = li.querySelector('.t-content');
+    c.style.transition = 'none';      // dragged row must follow the finger 1:1
     rows.forEach(r => { if (r !== li) r.classList.add('shifting'); });
     li.setPointerCapture && li.setPointerCapture(gg.pid);
   }
@@ -572,8 +588,7 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     e.preventDefault();
     const dy = e.clientY - gg.y;
     const li = gg.li;
-    li.querySelector('.t-content').style.transform = `translateY(${dy}px)`;
-    li.style.zIndex = 20;
+    li.querySelector('.t-content').style.transform = `translate3d(0,${dy}px,0)`;
     const rows = [...ul.children];
     let target = gg.startIdx + Math.round(dy / gg.rowH);
     target = Math.max(0, Math.min(rows.length - 1, target));
@@ -583,7 +598,9 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       let shift = 0;
       if (gg.curIdx < gg.startIdx && i >= gg.curIdx && i < gg.startIdx) shift = gg.rowH;
       if (gg.curIdx > gg.startIdx && i > gg.startIdx && i <= gg.curIdx) shift = -gg.rowH;
-      r.querySelector('.t-content').style.transform = shift ? `translateY(${shift}px)` : '';
+      const t = shift ? `translate3d(0,${shift}px,0)` : '';
+      const c = r.querySelector('.t-content');
+      if (c.style.transform !== t) c.style.transform = t;
     });
   }
   function endDrag(gg) {
@@ -614,8 +631,6 @@ function handleTap(g, e) {
     save(); render(from); render(to);
     return;
   }
-
-  if (editing[day]) { startRename(li, t, day); return; }
 
   if (day === 'backlog') {
     if (blSelected.has(t.id)) blSelected.delete(t.id); else blSelected.add(t.id);
