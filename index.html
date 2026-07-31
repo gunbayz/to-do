@@ -459,6 +459,8 @@ function closeActions() {
   if (openActions) {
     const a = openActions.querySelector('.t-actions');
     if (a) a.style.transform = '';
+    const c = openActions.querySelector('.t-content');
+    if (c) c.style.transform = '';
     openActions = null;
   }
 }
@@ -511,6 +513,11 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       const p = Math.max(0, Math.min(1, (g.open ? 1 : 0) + d / w));
       act.style.transition = 'none';
       act.style.transform = `translateX(${(g.dir > 0 ? -1 : 1) * (1 - p) * 110}%)`;
+      if (g.dir > 0) { // today: text slides right along with the strip
+        const c = g.li.querySelector('.t-content');
+        c.style.transition = 'none';
+        c.style.transform = `translateX(${p * w}px)`;
+      }
       g.actW = w;
     }
     if (g.mode === 'drag') moveDrag(g, e);
@@ -523,15 +530,21 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
       handleTap(g, e);
     } else if (g.mode === 'swipe') {
       const act = g.li.querySelector('.t-actions');
+      const cont = g.li.querySelector('.t-content');
       const d = (e.clientX - g.x) * g.dir;
       const w = g.actW || 164;
       act.style.transition = '';
+      cont.style.transition = '';
       const shouldOpen = g.open ? d > -w * 0.5 : d > w * 0.4;
       if (shouldOpen) {
         act.style.transform = 'translateX(0)';
+        if (g.dir > 0) cont.style.transform = `translateX(${w}px)`;
         if (openActions && openActions !== g.li) closeActions();
         openActions = g.li;
-      } else { act.style.transform = ''; if (openActions === g.li) openActions = null; }
+      } else {
+        act.style.transform = ''; cont.style.transform = '';
+        if (openActions === g.li) openActions = null;
+      }
     } else if (g.mode === 'drag') {
       endDrag(g);
     }
