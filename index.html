@@ -124,6 +124,8 @@ li.task.crossed .t-move{visibility:hidden}
 .t-move svg{width:26px;height:18px;display:block}
 .t-move svg path{stroke:#b9bcd0;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .mirror{transform:scaleX(-1)}
+/* the mirror flip also flips the padding, so reverse it to keep the arrow flush right */
+.t-move.mirror{padding:14px 10px 14px 0}
 
 /* ===== backlog sheet ===== */
 #bl-scrim{position:absolute;inset:0;background:rgba(28,29,49,.32);z-index:29;
