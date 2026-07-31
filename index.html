@@ -28,7 +28,9 @@
 html,body{height:100%;overflow:hidden;background:var(--bg);
   overscroll-behavior:none;touch-action:manipulation;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-body{font-family:var(--sans);color:var(--ink)}
+/* body is fixed so iOS can never scroll the document when the keyboard opens —
+   this is what keeps position:fixed buttons pinned to the real bottom */
+body{position:fixed;inset:0;width:100%;font-family:var(--sans);color:var(--ink)}
 input{-webkit-user-select:auto;user-select:auto}
 
 #pager{position:fixed;inset:0;display:flex;width:200vw;height:100%;
@@ -47,11 +49,6 @@ input{-webkit-user-select:auto;user-select:auto}
   background:transparent;border:none;padding:8px 6px;min-width:64px;cursor:pointer;line-height:1}
 .tb-btn:active{opacity:.6}
 .tb-spacer{min-width:64px}
-.fab-close{position:fixed;left:20px;bottom:20px;
-  height:58px;padding:0 26px;border-radius:999px;background:#fff;color:var(--accent);
-  font-family:var(--sans);font-size:18px;font-weight:600;border:1px solid var(--line);
-  box-shadow:0 8px 24px rgba(28,29,49,.12);cursor:pointer;z-index:40}
-.fab-close:active{opacity:.7}
 .tb-btn.active{color:#fff;background:var(--accent);border-radius:999px;padding:8px 14px}
 
 /* add row (revealed by the + button) */
@@ -105,13 +102,21 @@ li.task .strike-anim path{stroke-dasharray:1;stroke-dashoffset:1;
 .mirror{transform:scaleX(-1)}
 li.task.edit-mode .t-move{opacity:.25;pointer-events:none}
 
-/* ===== backlog overlay ===== */
-#backlog{position:fixed;inset:0;z-index:30;background:var(--bg);
-  transform:translateY(104%);transition:transform .32s cubic-bezier(.3,.9,.35,1);
+/* ===== backlog sheet ===== */
+#bl-scrim{position:fixed;inset:0;background:rgba(28,29,49,.32);z-index:29;
+  opacity:0;pointer-events:none;transition:opacity .3s ease}
+#bl-scrim.show{opacity:1;pointer-events:auto}
+#backlog{position:fixed;left:0;right:0;bottom:0;
+  top:calc(env(safe-area-inset-top) + 18px);z-index:30;background:var(--bg);
+  border-radius:22px 22px 0 0;box-shadow:0 -12px 44px rgba(28,29,49,.22);
+  transform:translateY(104%);transition:transform .34s cubic-bezier(.32,.72,.28,1);
   display:flex;flex-direction:column}
 #backlog.open{transform:translateY(0)}
+.bl-head{padding:10px 20px 4px;touch-action:none;cursor:grab}
+.bl-head .grabber{width:38px;height:5px;border-radius:3px;background:#d9dbe6;
+  margin:0 auto 12px}
 #backlog .bl-scroll{flex:1;overflow-y:auto;position:relative;
-  padding:calc(env(safe-area-inset-top) + 12px) 20px 170px 20px}
+  padding:0 20px 170px 20px}
 li.task .t-sel{flex-shrink:0;width:26px;height:26px;border:1.5px solid #d9dbe6;
   border-radius:50%;margin-right:4px;display:flex;align-items:center;justify-content:center;
   transition:all .15s;background:#fff}
@@ -167,22 +172,23 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 <button class="fab" id="fab-day" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
 
 <!-- BACKLOG -->
+<div id="bl-scrim"></div>
 <section id="backlog">
-  <div class="bl-scroll">
+  <div class="bl-head">
+    <div class="grabber"></div>
     <div class="topbar">
-      <span class="tb-spacer"></span>
+      <button class="tb-btn" id="bl-add">Add</button>
       <div class="titles">
         <h1>Backlog</h1>
-        <div class="sub" id="bl-sub"></div>
       </div>
       <button class="tb-btn btn-edit" data-day="backlog">Edit</button>
     </div>
+  </div>
+  <div class="bl-scroll">
     <div class="add-row" data-day="backlog"><span class="add-ph">+ New task</span></div>
     <ul class="tasks" id="list-backlog"></ul>
   </div>
   <div id="bl-addbar"><button id="bl-addbtn"></button></div>
-  <button class="fab-close" id="bl-done">Close</button>
-  <button class="fab" id="fab-backlog" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
 </section>
 
 <script>
@@ -339,7 +345,6 @@ function openAdd(day) {
   row.click();
 }
 document.getElementById('fab-day').addEventListener('click', () => openAdd(pageIndex ? 'tomorrow' : 'today'));
-document.getElementById('fab-backlog').addEventListener('click', () => openAdd('backlog'));
 
 /* ============================== edit mode ============================== */
 document.querySelectorAll('.btn-edit').forEach(b => {
@@ -352,21 +357,52 @@ document.querySelectorAll('.btn-edit').forEach(b => {
   });
 });
 
-/* ============================== backlog open/close ============================== */
+/* ============================== backlog sheet open/close ============================== */
 const backlogEl = document.getElementById('backlog');
+const scrimEl = document.getElementById('bl-scrim');
 document.querySelectorAll('.btn-backlog').forEach(b => {
   b.addEventListener('click', () => {
     blOrigin = b.dataset.day;
     blSelected.clear();
-    document.getElementById('bl-sub').textContent = 'Tap to select, then add to ' + blOrigin;
     render('backlog'); updateAddbar();
     backlogEl.classList.add('open');
+    scrimEl.classList.add('show');
   });
 });
-document.getElementById('bl-done').addEventListener('click', () => {
+function closeBacklog() {
   backlogEl.classList.remove('open');
+  scrimEl.classList.remove('show');
   blSelected.clear(); updateAddbar();
-});
+}
+scrimEl.addEventListener('click', closeBacklog);
+document.getElementById('bl-add').addEventListener('click', () => openAdd('backlog'));
+
+/* drag the sheet down (from the grabber / header) to dismiss */
+(() => {
+  const head = document.querySelector('.bl-head');
+  let sd = null;
+  head.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    sd = { y: e.clientY, t: Date.now(), dy: 0, pid: e.pointerId };
+    backlogEl.style.transition = 'none';
+    head.setPointerCapture && head.setPointerCapture(e.pointerId);
+  });
+  head.addEventListener('pointermove', e => {
+    if (!sd || e.pointerId !== sd.pid) return;
+    sd.dy = Math.max(0, e.clientY - sd.y);
+    backlogEl.style.transform = `translateY(${sd.dy}px)`;
+  });
+  const end = e => {
+    if (!sd) return;
+    backlogEl.style.transition = '';
+    backlogEl.style.transform = '';
+    const vel = sd.dy / Math.max(1, Date.now() - sd.t); // px per ms
+    if (sd.dy > 140 || vel > 0.5) closeBacklog();
+    sd = null;
+  };
+  head.addEventListener('pointerup', end);
+  head.addEventListener('pointercancel', end);
+})();
 function updateAddbar() {
   const bar = document.getElementById('bl-addbar');
   const n = blSelected.size;
@@ -374,7 +410,6 @@ function updateAddbar() {
     document.getElementById('bl-addbtn').textContent = `Add ${n} to ${blOrigin}`;
     bar.classList.add('show');
   } else bar.classList.remove('show');
-  document.getElementById('fab-backlog').classList.toggle('hidden', n > 0);
 }
 document.getElementById('bl-addbtn').addEventListener('click', () => {
   const ids = [...blSelected];
@@ -384,9 +419,8 @@ document.getElementById('bl-addbtn').addEventListener('click', () => {
   listFor(blOrigin).unshift(...copies);
   // non-permanent items leave the backlog when used
   state.backlog = state.backlog.filter(t => !(blSelected.has(t.id) && !t.perm));
-  blSelected.clear();
   save(); renderAll();
-  backlogEl.classList.remove('open');
+  closeBacklog();
   goTo(blOrigin === 'today' ? 0 : 1, false);
 });
 
@@ -601,12 +635,25 @@ document.addEventListener('click', e => {
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 /* iOS: snap the viewport back after the keyboard closes, so fixed buttons
-   (the + and Close) return to the bottom instead of being left stranded */
-window.addEventListener('focusout', () => setTimeout(() => window.scrollTo(0, 0), 60));
-if (window.visualViewport) visualViewport.addEventListener('resize', () => {
-  const a = document.activeElement;
-  if (!a || a.tagName !== 'INPUT') window.scrollTo(0, 0);
+   return to the bottom instead of being left stranded */
+function resetViewport() {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+window.addEventListener('focusout', () => {
+  [60, 250, 600, 1000].forEach(t => setTimeout(resetViewport, t));
 });
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', () => {
+    const a = document.activeElement;
+    if (!a || a.tagName !== 'INPUT') resetViewport();
+  });
+  visualViewport.addEventListener('scroll', () => {
+    const a = document.activeElement;
+    if (!a || a.tagName !== 'INPUT') resetViewport();
+  });
+}
 
 /* ============================== midnight rollover ============================== */
 function checkRollover() {
