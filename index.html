@@ -59,7 +59,7 @@ input{-webkit-user-select:auto;user-select:auto}
   border-bottom:1px solid var(--line);
   color:var(--muted);font-size:18px;font-weight:500;cursor:text}
 .add-row.active{display:flex}
-#backlog .add-row{display:flex}  /* routines: the + New task row is always visible */
+#backlog .add-row{display:flex}  /* Later: the + New task row is always visible */
 
 /* floating buttons — iOS 26 liquid-glass style */
 .fab{position:absolute;right:20px;bottom:20px;
@@ -116,12 +116,10 @@ li.task.dragging .t-actions{display:none}
 .t-text input{width:100%;border:none;outline:none;background:transparent;
   font-family:var(--sans);font-size:18px;font-weight:500;color:var(--ink)}
 li.task.crossed .t-text{color:var(--muted)}
-.t-strike{position:absolute;left:-2px;top:50%;height:8px;transform:translateY(-50%);
-  width:calc(100% + 4px);pointer-events:none;overflow:visible}
-.t-strike path{stroke:var(--muted);stroke-width:1.6;fill:none;stroke-linecap:round}
-li.task .strike-anim path{stroke-dasharray:1;stroke-dashoffset:1;
-  animation:strike .3s ease-out forwards}
-@keyframes strike{to{stroke-dashoffset:0}}
+/* strike only the text itself; wraps per line automatically */
+li.task.crossed .t-label{text-decoration:line-through;
+  text-decoration-thickness:1.5px;text-decoration-color:var(--muted)}
+li.task.crossed .t-move{visibility:hidden}
 .t-move{flex-shrink:0;border:none;background:transparent;padding:14px 0 14px 10px;cursor:pointer}
 .t-move svg{width:26px;height:18px;display:block}
 .t-move svg path{stroke:#b9bcd0;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
@@ -191,7 +189,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 </div>
 
 <button class="fab" id="fab-day" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
-<button class="fab fab-left" id="fab-bl-open" aria-label="Open routines"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12" fill="none"/><circle cx="4" cy="6" r="1.4" fill="#fff"/><circle cx="4" cy="12" r="1.4" fill="#fff"/><circle cx="4" cy="18" r="1.4" fill="#fff"/></svg></button>
+<button class="fab fab-left" id="fab-bl-open" aria-label="Open Later list"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12" fill="none"/><circle cx="4" cy="6" r="1.4" fill="#fff"/><circle cx="4" cy="12" r="1.4" fill="#fff"/><circle cx="4" cy="18" r="1.4" fill="#fff"/></svg></button>
 
 <!-- BACKLOG -->
 <div id="bl-scrim"></div>
@@ -200,7 +198,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
     <div class="grabber"></div>
     <div class="topbar">
       <div class="titles">
-        <h1>Routines</h1>
+        <h1>Later</h1>
       </div>
     </div>
   </div>
@@ -253,11 +251,6 @@ let blOrigin = 'today';          // which day backlog was opened from
 let blSelected = new Set();
 let rowDragging = false;         // a row is being long-pressed / reordered
 
-function strikeSVG() {
-  return `<svg class="t-strike" viewBox="0 0 300 8" preserveAspectRatio="none">
-    <path pathLength="1" d="M2 4 L298 4"/>
-  </svg>`;
-}
 const ARROW = `<svg viewBox="0 0 36 22"><path d="M4 11 H31 M23 4 L31 11 L23 18"/></svg>`;
 const CHECK = `<svg viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 5"/></svg>`;
 
@@ -265,12 +258,12 @@ function rowHTML(t, day) {
   const isBL = day === 'backlog';
   return `<li class="task ${t.done ? 'crossed' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}">
     <div class="t-actions">
-      ${isBL ? '' : '<button class="a-backlog">routines</button>'}
+      ${isBL ? '' : '<button class="a-backlog">later</button>'}
       <button class="a-delete">delete</button>
     </div>
     <div class="t-content">
       ${isBL ? `<span class="t-sel">${CHECK}</span>` : ''}
-      <span class="t-text">${escapeHTML(t.text)}${t.done ? strikeSVG() : ''}</span>
+      <span class="t-text"><span class="t-label">${escapeHTML(t.text)}</span></span>
       ${isBL ? '' : `<button class="t-move ${day === 'tomorrow' ? 'mirror' : ''}">${ARROW}</button>`}
     </div>
   </li>`;
@@ -665,14 +658,7 @@ function handleTap(g, e) {
   // cross / uncross
   t.done = !t.done;
   save();
-  const txt = li.querySelector('.t-text');
-  if (t.done) {
-    li.classList.add('crossed', 'strike-anim');
-    txt.insertAdjacentHTML('beforeend', strikeSVG());
-  } else {
-    li.classList.remove('crossed', 'strike-anim');
-    const s = txt.querySelector('.t-strike'); s && s.remove();
-  }
+  li.classList.toggle('crossed', t.done);
 }
 
 function startRename(li, t, day) {
