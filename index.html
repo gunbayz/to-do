@@ -83,6 +83,10 @@ li.task.dragging{z-index:20;border-bottom-color:transparent}
 li.task.dragging .t-content{background:var(--bg);box-shadow:0 8px 22px rgba(28,29,49,.16);
   border-radius:12px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
 li.task.shifting .t-content{transition:transform .18s ease}
+/* while reordering, rows must be able to render outside their own slot
+   (otherwise shifted rows get clipped and look blank) */
+ul.tasks.reordering li.task{overflow:visible}
+ul.tasks.reordering .t-actions{display:none}
 /* action strip slides in OVER the row; the task text never moves */
 .t-actions{position:absolute;inset:0 0 0 auto;display:flex;z-index:2;padding-left:12px;
   transform:translateX(110%);transition:transform .22s cubic-bezier(.25,.8,.35,1);
@@ -293,6 +297,27 @@ pager.addEventListener('pointerdown', e => {
   if (e.target.closest('button') || e.target.closest('input')) return;
   pDrag = { x: e.clientX, y: e.clientY, active: false, id: e.pointerId };
 });
+
+/* On scrollable pages iOS grabs every gesture for vertical scrolling and
+   cancels our pointer events, so horizontal swipes die. Decide the gesture
+   direction ourselves: if it's horizontal-dominant, block native scrolling. */
+let tGuard = null;
+pager.addEventListener('touchstart', e => {
+  if (e.target.closest('input')) { tGuard = null; return; }
+  tGuard = { x: e.touches[0].clientX, y: e.touches[0].clientY, decided: false, horiz: false };
+}, { passive: true });
+pager.addEventListener('touchmove', e => {
+  if (!tGuard) return;
+  const dx = e.touches[0].clientX - tGuard.x, dy = e.touches[0].clientY - tGuard.y;
+  if (!tGuard.decided) {
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+      tGuard.decided = true;
+      tGuard.horiz = Math.abs(dx) > Math.abs(dy);
+    }
+  }
+  if (tGuard.decided && tGuard.horiz) e.preventDefault();
+}, { passive: false });
+pager.addEventListener('touchend', () => { tGuard = null; });
 pager.addEventListener('pointermove', e => {
   if (!pDrag || e.pointerId !== pDrag.id) return;
   const dx = e.clientX - pDrag.x, dy = e.clientY - pDrag.y;
@@ -578,6 +603,7 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     gg.curIdx = gg.startIdx;
     gg.rowH = li.getBoundingClientRect().height;
     gg.y = e.clientY;                 // rebase so the row doesn't jump
+    ul.classList.add('reordering');
     li.classList.add('dragging');
     const c = li.querySelector('.t-content');
     c.style.transition = 'none';      // dragged row must follow the finger 1:1
@@ -604,6 +630,7 @@ document.querySelectorAll('ul.tasks').forEach(ul => {
     });
   }
   function endDrag(gg) {
+    ul.classList.remove('reordering');
     const list = listFor(gg.day);
     const item = list.splice(gg.startIdx, 1)[0];
     list.splice(gg.curIdx, 0, item);
