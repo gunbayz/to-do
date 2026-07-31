@@ -28,12 +28,14 @@
 html,body{height:100%;overflow:hidden;background:var(--bg);
   overscroll-behavior:none;touch-action:manipulation;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-/* body is fixed so iOS can never scroll the document when the keyboard opens —
-   this is what keeps position:fixed buttons pinned to the real bottom */
-body{position:fixed;inset:0;width:100%;font-family:var(--sans);color:var(--ink)}
+/* body is fixed so iOS can never scroll the document when the keyboard opens.
+   100vh (not bottom:0) makes it cover the full screen incl. the home-indicator
+   area, so there is no uncovered strip at the bottom. UI is anchored to body. */
+body{position:fixed;top:0;left:0;width:100vw;height:100vh;
+  font-family:var(--sans);color:var(--ink)}
 input{-webkit-user-select:auto;user-select:auto}
 
-#pager{position:fixed;inset:0;display:flex;width:200vw;height:100%;
+#pager{position:absolute;inset:0;display:flex;width:200vw;height:100%;
   will-change:transform;z-index:1}
 .page{width:100vw;height:100%;overflow-y:auto;overflow-x:hidden;position:relative;
   padding:calc(env(safe-area-inset-top) + 12px) 20px calc(env(safe-area-inset-bottom) + 110px) 20px;
@@ -58,7 +60,7 @@ input{-webkit-user-select:auto;user-select:auto}
 .add-row.active{display:flex}
 
 /* floating + button */
-.fab{position:fixed;right:20px;bottom:20px;
+.fab{position:absolute;right:20px;bottom:20px;
   width:58px;height:58px;border-radius:50%;background:var(--accent);border:none;
   display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;
   box-shadow:0 8px 24px rgba(109,77,242,.4)}
@@ -103,12 +105,12 @@ li.task .strike-anim path{stroke-dasharray:1;stroke-dashoffset:1;
 li.task.edit-mode .t-move{opacity:.25;pointer-events:none}
 
 /* ===== backlog sheet ===== */
-#bl-scrim{position:fixed;inset:0;background:rgba(28,29,49,.32);z-index:29;
+#bl-scrim{position:absolute;inset:0;background:rgba(28,29,49,.32);z-index:29;
   opacity:0;pointer-events:none;transition:opacity .3s ease}
 #bl-scrim.show{opacity:1;pointer-events:auto}
-#backlog{position:fixed;left:0;right:0;bottom:0;
+#backlog{position:absolute;left:0;right:0;bottom:0;
   top:calc(env(safe-area-inset-top) + 18px);z-index:30;background:var(--bg);
-  border-radius:22px 22px 0 0;box-shadow:0 -12px 44px rgba(28,29,49,.22);
+  border-radius:34px 34px 0 0;box-shadow:0 -12px 44px rgba(28,29,49,.22);
   transform:translateY(104%);transition:transform .34s cubic-bezier(.32,.72,.28,1);
   display:flex;flex-direction:column}
 #backlog.open{transform:translateY(0)}
@@ -116,7 +118,7 @@ li.task.edit-mode .t-move{opacity:.25;pointer-events:none}
 .bl-head .grabber{width:38px;height:5px;border-radius:3px;background:#d9dbe6;
   margin:0 auto 12px}
 #backlog .bl-scroll{flex:1;overflow-y:auto;position:relative;
-  padding:0 20px 170px 20px}
+  overscroll-behavior:contain;padding:0 20px 170px 20px}
 li.task .t-sel{flex-shrink:0;width:26px;height:26px;border:1.5px solid #d9dbe6;
   border-radius:50%;margin-right:4px;display:flex;align-items:center;justify-content:center;
   transition:all .15s;background:#fff}
@@ -377,31 +379,41 @@ function closeBacklog() {
 scrimEl.addEventListener('click', closeBacklog);
 document.getElementById('bl-add').addEventListener('click', () => openAdd('backlog'));
 
-/* drag the sheet down (from the grabber / header) to dismiss */
+/* drag the sheet down anywhere to dismiss (list must be scrolled to top) */
 (() => {
-  const head = document.querySelector('.bl-head');
+  const scroller = document.querySelector('#backlog .bl-scroll');
   let sd = null;
-  head.addEventListener('pointerdown', e => {
-    if (e.target.closest('button')) return;
-    sd = { y: e.clientY, t: Date.now(), dy: 0, pid: e.pointerId };
-    backlogEl.style.transition = 'none';
-    head.setPointerCapture && head.setPointerCapture(e.pointerId);
+  backlogEl.addEventListener('pointerdown', e => {
+    if (e.target.closest('input')) return;
+    sd = { x: e.clientX, y: e.clientY, t: Date.now(), dy: 0, pid: e.pointerId,
+           active: !!e.target.closest('.bl-head') && !e.target.closest('button') };
+    if (sd.active) backlogEl.style.transition = 'none';
   });
-  head.addEventListener('pointermove', e => {
+  backlogEl.addEventListener('pointermove', e => {
     if (!sd || e.pointerId !== sd.pid) return;
+    if (!sd.active) {
+      const dy = e.clientY - sd.y, dx = e.clientX - sd.x;
+      if (dy > 10 && dy > Math.abs(dx) * 1.2 && scroller.scrollTop <= 0) {
+        sd.active = true; sd.y = e.clientY; sd.t = Date.now();
+        backlogEl.style.transition = 'none';
+      } else if (dy < -10 || Math.abs(dx) > 12) { sd = null; return; }
+      else return;
+    }
     sd.dy = Math.max(0, e.clientY - sd.y);
     backlogEl.style.transform = `translateY(${sd.dy}px)`;
   });
-  const end = e => {
+  const end = () => {
     if (!sd) return;
     backlogEl.style.transition = '';
     backlogEl.style.transform = '';
-    const vel = sd.dy / Math.max(1, Date.now() - sd.t); // px per ms
-    if (sd.dy > 140 || vel > 0.5) closeBacklog();
+    if (sd.active) {
+      const vel = sd.dy / Math.max(1, Date.now() - sd.t); // px per ms
+      if (sd.dy > 140 || vel > 0.5) closeBacklog();
+    }
     sd = null;
   };
-  head.addEventListener('pointerup', end);
-  head.addEventListener('pointercancel', end);
+  backlogEl.addEventListener('pointerup', end);
+  backlogEl.addEventListener('pointercancel', end);
 })();
 function updateAddbar() {
   const bar = document.getElementById('bl-addbar');
