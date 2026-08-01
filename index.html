@@ -124,10 +124,10 @@ li.task.acts-open{border-bottom-color:transparent}
 .t-text input,.t-text textarea{width:100%;border:none;outline:none;background:transparent;
   font-family:var(--sans);font-size:18px;font-weight:500;line-height:1.35;color:var(--ink);
   resize:none;padding:0;display:block;overflow:hidden}
-li.task.crossed .t-text{color:var(--muted)}
+/* fade the whole label (emoji included) instead of recoloring the text */
+li.task.crossed .t-text{opacity:.42;transition:opacity .25s ease}
 /* strike only the text itself; wraps per line automatically */
-li.task.crossed .t-label{text-decoration:line-through;
-  text-decoration-thickness:1.5px;text-decoration-color:var(--muted)}
+li.task.crossed .t-label{text-decoration:line-through;text-decoration-thickness:1.5px}
 li.task.crossed .t-move{visibility:hidden}
 .t-move{flex-shrink:0;border:none;background:transparent;padding:14px 0 14px 10px;cursor:pointer}
 .t-move svg{width:26px;height:18px;display:block}
