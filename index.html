@@ -117,7 +117,7 @@ li.task.dragging .t-actions{display:none}
 /* no divider line under a row whose action buttons are showing */
 li.task.acts-open{border-bottom-color:transparent}
 .t-content{position:relative;z-index:1;display:flex;align-items:center;gap:10px;
-  min-height:52px;background:var(--bg);
+  min-height:52px;background:var(--tile,var(--bg));
   will-change:transform;transition:transform .22s cubic-bezier(.25,.8,.35,1)}
 .t-text{flex:1;font-size:18px;font-weight:500;line-height:1.35;padding:14px 0;
   position:relative;min-width:0;overflow-wrap:anywhere}
@@ -167,6 +167,38 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   background:var(--accent);color:#fff;border:none;border-radius:999px;
   height:58px;padding:0 30px;box-shadow:0 8px 24px rgba(109,77,242,.35);cursor:pointer}
 
+/* ===== settings ===== */
+#btn-settings{position:absolute;top:calc(env(safe-area-inset-top) + 16px);right:18px;z-index:26;
+  width:40px;height:40px;border-radius:50%;border:none;background:transparent;padding:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer}
+#btn-settings:active{opacity:.5}
+#btn-settings svg{width:23px;height:23px}
+#btn-settings svg path,#btn-settings svg circle{stroke:var(--muted);stroke-width:1.8;fill:none;
+  stroke-linecap:round;stroke-linejoin:round}
+#set-scrim{position:absolute;inset:0;background:rgba(28,29,49,.32);z-index:31;
+  opacity:0;pointer-events:none;transition:opacity .3s ease}
+#set-scrim.show{opacity:1;pointer-events:auto}
+#settings{position:absolute;left:0;right:0;bottom:0;z-index:32;background:var(--bg);
+  border-radius:34px 34px 0 0;box-shadow:0 -12px 44px rgba(28,29,49,.22);
+  transform:translateY(104%);transition:transform .34s cubic-bezier(.32,.72,.28,1);
+  display:flex;flex-direction:column;max-height:calc(100% - env(safe-area-inset-top) - 18px)}
+#settings.open{transform:translateY(0)}
+#settings .set-scroll{overflow-y:auto;padding:0 24px calc(env(safe-area-inset-bottom) + 28px)}
+.set-title{font-size:24px;font-weight:700;text-align:center;margin-bottom:2px}
+.set-label{font-size:13px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;
+  color:var(--muted);margin:18px 0 12px}
+.swatches{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.swatch{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);cursor:pointer;
+  padding:0;position:relative;overflow:hidden}
+.swatch.active{box-shadow:0 0 0 2px var(--bg) inset, 0 0 0 4px var(--ink)}
+.swatch-custom input{position:absolute;top:-6px;left:-6px;width:calc(100% + 12px);
+  height:calc(100% + 12px);border:none;padding:0;background:transparent;cursor:pointer}
+.heat-preview{border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.heat-preview .pv{display:flex;align-items:center;justify-content:space-between;
+  padding:15px 16px;font-size:16px;font-weight:500;color:var(--ink)}
+.heat-preview .pv .sub{color:var(--muted);font-size:13px;font-weight:500}
+.set-hint{font-size:13px;line-height:1.5;color:var(--muted);margin-top:12px}
+
 /* helper */
 .hidden{display:none!important}
 </style>
@@ -201,6 +233,7 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 
 <button class="fab" id="fab-day" aria-label="Add task"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none"/></svg></button>
 <button class="fab fab-left" id="fab-bl-open" aria-label="Open Later list"><svg viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12" fill="none"/><circle cx="4" cy="6" r="1.4" fill="#fff"/><circle cx="4" cy="12" r="1.4" fill="#fff"/><circle cx="4" cy="18" r="1.4" fill="#fff"/></svg></button>
+<button id="btn-settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .34 1.87l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.08a1.7 1.7 0 0 0-1.12-1.55 1.7 1.7 0 0 0-1.87.34l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.08a1.7 1.7 0 0 0 1.55-1.12 1.7 1.7 0 0 0-.34-1.87l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.7 1.7 0 0 0 1.87.34H10a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.7 1.7 0 0 0-.34 1.87V10a1.7 1.7 0 0 0 1.55 1H21a2 2 0 0 1 0 4h-.08a1.7 1.7 0 0 0-1.6 1z"/></svg></button>
 
 <!-- BACKLOG -->
 <div id="bl-scrim"></div>
@@ -220,9 +253,24 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
   <div id="bl-addbar"><button id="bl-addbtn"></button></div>
 </section>
 
+<!-- SETTINGS -->
+<div id="set-scrim"></div>
+<section id="settings">
+  <div class="bl-head"><div class="grabber"></div></div>
+  <div class="set-scroll">
+    <div class="set-title">Settings</div>
+    <div class="set-label">Staleness heat colour</div>
+    <div class="swatches" id="heat-swatches"></div>
+    <div class="heat-preview" id="heat-preview"></div>
+    <div class="set-hint">Tasks left unresolved tint toward this colour as they roll over &mdash;
+      about halfway by 7 days, full colour by 14.</div>
+  </div>
+</section>
+
 <script>
 /* ============================== state ============================== */
 const KEY = 'today-tomorrow-v1';
+const DEFAULT_HEAT = '#ff3b30';
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 function todayStr(d = new Date()) {
@@ -230,12 +278,26 @@ function todayStr(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// whole days between two YYYY-MM-DD strings (at least 1, so a gap of skipped days still ages tasks)
+function dayGap(a, b) {
+  const toDate = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const n = Math.round((toDate(b) - toDate(a)) / 86400000);
+  return n > 0 ? n : 1;
+}
+
 /*ROLLOVER-START*/
 function rollover(state, cur) {
   if (!state.d) { state.d = cur; return state; }
   if (state.d >= cur) return state;
-  // crossed-off tasks on BOTH days are cleared; unfinished ones roll into the new today
-  state.today = [...state.today.filter(t => !t.done), ...state.tomorrow.filter(t => !t.done)];
+  // crossed-off tasks on BOTH days are cleared; unfinished ones roll into the new today.
+  // each surviving (unresolved) task ages by the number of days elapsed — its "carry"
+  // count — which drives the staleness tint in staleTint().
+  const days = dayGap(state.d, cur);
+  const age = t => { t.carry = (t.carry || 0) + days; return t; };
+  state.today = [
+    ...state.today.filter(t => !t.done).map(age),
+    ...state.tomorrow.filter(t => !t.done).map(age)
+  ];
   state.tomorrow = [];
   state.d = cur;
   return state;
@@ -246,6 +308,7 @@ let state;
 function load() {
   try { state = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { state = null; }
   if (!state) state = { d: todayStr(), today: [], tomorrow: [], backlog: [] };
+  state.heatColor = state.heatColor || DEFAULT_HEAT;   // staleness tint colour (user-chosen in Settings)
   rollover(state, todayStr());
   save();
 }
@@ -262,9 +325,30 @@ const LIST_ICON = `<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><
 const TRASH_ICON = `<svg viewBox="0 0 24 24"><path d="M4 7h16M9.5 11v6M14.5 11v6M6 7l1.2 13h9.6L18 7M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/></svg>`;
 const CHECK = `<svg viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 5"/></svg>`;
 
+// staleness heat: a today/tomorrow task tints toward the chosen heat colour as its
+// carry count grows. 7 days deferred -> ~50% of the way, 14+ days -> the full colour.
+function hexToRgb(h) {
+  h = (h || '').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+// blend white -> colour by p (0..1), where p is the fraction of the way to the full colour
+function heatRgb(color, p) {
+  const [r, g, b] = hexToRgb(color);
+  const mix = c => Math.round(255 + (c - 255) * p);
+  return `rgb(${mix(r)} ${mix(g)} ${mix(b)})`;
+}
+function staleTint(t, day) {
+  if (day === 'backlog' || t.done) return '';
+  const c = t.carry || 0;
+  if (c <= 0) return '';
+  const p = Math.min(1, c / 14);
+  return ` style="--tile:${heatRgb(state.heatColor || DEFAULT_HEAT, p)}"`;
+}
 function rowHTML(t, day) {
   const isBL = day === 'backlog';
-  return `<li class="task ${t.done ? 'crossed' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}">
+  return `<li class="task ${t.done ? 'crossed' : ''} ${isBL && !t.perm ? 'temp' : ''} ${isBL && blSelected.has(t.id) ? 'selected' : ''}" data-id="${t.id}" data-day="${day}"${staleTint(t, day)}>
     <div class="t-actions">
       ${isBL ? '' : '<button class="a-backlog" aria-label="Move to Later">' + LIST_ICON + '</button>'}
       <button class="a-delete" aria-label="Delete">${TRASH_ICON}</button>
@@ -442,6 +526,62 @@ scrimEl.addEventListener('click', closeBacklog);
   backlogEl.addEventListener('pointerup', end);
   backlogEl.addEventListener('pointercancel', end);
 })();
+/* ============================== settings sheet ============================== */
+const settingsEl = document.getElementById('settings');
+const setScrim = document.getElementById('set-scrim');
+const HEAT_PRESETS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#0a84ff', '#6d4df2', '#ff2d55'];
+const RAINBOW = 'conic-gradient(from 90deg,#ff3b30,#ff9500,#ffcc00,#34c759,#0a84ff,#6d4df2,#ff2d55,#ff3b30)';
+const norm = h => (h || '').toLowerCase();
+
+function renderSwatches() {
+  const cur = norm(state.heatColor);
+  const isPreset = HEAT_PRESETS.map(norm).includes(cur);
+  document.getElementById('heat-swatches').innerHTML =
+    HEAT_PRESETS.map(c =>
+      `<button type="button" class="swatch${norm(c) === cur ? ' active' : ''}" data-color="${c}"
+         style="background:${c}" aria-label="Heat colour ${c}"></button>`).join('') +
+    `<button type="button" class="swatch swatch-custom${isPreset ? '' : ' active'}" aria-label="Custom colour"
+       style="background:${isPreset ? RAINBOW : state.heatColor}">
+       <input type="color" id="heat-custom" value="${state.heatColor}"></button>`;
+}
+function renderHeatPreview() {
+  document.getElementById('heat-preview').innerHTML =
+    [[3, '3 days'], [7, '7 days'], [14, '14+ days']].map(([c, label]) => {
+      const p = Math.min(1, c / 14);
+      return `<div class="pv" style="background:${heatRgb(state.heatColor, p)}">
+        <span>Overdue task</span><span class="sub">${label}</span></div>`;
+    }).join('');
+}
+function setHeatColor(c, fromCustom) {
+  state.heatColor = c; save();
+  renderHeatPreview();
+  render('today'); render('tomorrow');
+  if (fromCustom) {
+    // don't rebuild the swatches (would tear down the open native colour input mid-drag)
+    document.querySelectorAll('#heat-swatches .swatch')
+      .forEach(s => s.classList.toggle('active', s.classList.contains('swatch-custom')));
+  } else {
+    renderSwatches();
+  }
+}
+function openSettings() {
+  renderSwatches(); renderHeatPreview();
+  settingsEl.classList.add('open'); setScrim.classList.add('show');
+}
+function closeSettings() {
+  settingsEl.classList.remove('open'); setScrim.classList.remove('show');
+}
+document.getElementById('btn-settings').addEventListener('click', openSettings);
+setScrim.addEventListener('click', closeSettings);
+document.getElementById('heat-swatches').addEventListener('click', e => {
+  const b = e.target.closest('.swatch');
+  if (!b || b.classList.contains('swatch-custom')) return;   // custom is driven by its <input>
+  setHeatColor(b.dataset.color, false);
+});
+settingsEl.addEventListener('input', e => {
+  if (e.target.id === 'heat-custom') setHeatColor(e.target.value, true);
+});
+
 function updateAddbar() {
   const bar = document.getElementById('bl-addbar');
   const n = blSelected.size;

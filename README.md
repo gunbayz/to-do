@@ -24,5 +24,9 @@ Offline-first PWA. Today, tomorrow, and a backlog. Nothing else.
   leave the backlog once used; items created in the backlog stay forever.
 - At **midnight**: crossed-out tasks disappear, unfinished ones roll into the new
   today, tomorrow becomes today.
+- **Staleness heat**: a task you keep pushing forward slowly tints toward a warning
+  colour — about halfway by 7 days, full colour by 14. Finishing it clears the heat.
+- **Settings** (gear, top-right): choose the heat colour from presets or a custom
+  picker, with a live preview.
 
 All data is stored on-device (localStorage). No server, no account, no tracking.
