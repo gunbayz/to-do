@@ -1,32 +1,19 @@
-# Today — a two-day to-do app
+# Bakkal 🍋
 
-Offline-first PWA. Today, tomorrow, and a backlog. Nothing else.
+Annemin alışveriş listesi: pazar, market, bakkal — ne lazımsa. A tiny, offline Turkish grocery list for the phone.
 
-## Get it on your phone (~2 minutes)
+## Get it on your phone
 
-1. Go to **app.netlify.com/drop** (free, no account needed to start) and drag this whole folder onto the page. You'll get a URL like `https://something.netlify.app`.
-   - Alternative: GitHub Pages, Vercel, or any static host.
-2. Open that URL in **Safari** on your iPhone.
-3. Tap **Share → Add to Home Screen**.
-4. Open it from the home screen once while online — after that it works fully offline.
+1. Open **https://gunbayz.github.io/groceries-mom/** in Safari (iPhone) or Chrome (Android).
+2. Tap **Share → Add to Home Screen** (Android: ⋮ → Install app).
+3. Open it once while online. After that it works without internet.
 
 ## How it works
 
-- **Swipe** left/right on blank paper to flip between Today and Tomorrow.
-- **Tap** the `+ add a new task` line to add (new tasks go to the top).
-- **Tap** a task to cross it out; tap again to un-cross.
-- **Arrow** on a task sends it to the other day.
-- **Swipe left on a task** for delete / send to backlog.
-- **Long-press and drag** to reorder.
-- **edit** button: tap tasks to rename them.
-- **backlog** button: permanent tasks live here. Tap to select several, then
-  `add N to today/tomorrow`. Items sent to backlog from a day (shown in italic)
-  leave the backlog once used; items created in the backlog stay forever.
-- At **midnight**: crossed-out tasks disappear, unfinished ones roll into the new
-  today, tomorrow becomes today.
-- **Staleness heat**: a task you keep pushing forward slowly tints toward a warning
-  colour — about halfway by 7 days, full colour by 14. Finishing it clears the heat.
-- **Settings** (gear, top-right): choose the heat colour from presets or a custom
-  picker, with a live preview.
+- **Ekle:** tap "Ne lazım?" and type. Press Enter to add and keep typing the next one.
+- **Sepete at:** tap an item — it gets crossed off and slides down to "Sepette". Tap again to bring it back.
+- **Temizle:** tap the green "Sepettekileri kaldır" button to remove all crossed-off items at once. Changed your mind? "Geri al".
+- **Düzelt / Sil:** tap ⋯ next to an item.
+- Clear the whole list and it rains lemons.
 
-All data is stored on-device (localStorage). No server, no account, no tracking.
+The list is saved on the phone only (no account, no server).
