@@ -25,7 +25,9 @@ Offline-first PWA. Today, tomorrow, and a backlog. Nothing else.
 - At **midnight**: crossed-out tasks disappear, unfinished ones roll into the new
   today, tomorrow becomes today.
 - **Staleness heat**: a task you keep pushing forward slowly tints toward a warning
-  colour — about halfway by 7 days, full colour by 14. Finishing it clears the heat.
+  colour — about halfway by 7 days, full colour by 14. After 5 days an 8-bit bear
+  starts stalking in from the right of the row, creeping closer the longer you defer
+  it (it looms but never reaches the text). Finishing the task clears both.
 - **Settings** (gear, top-right): choose the heat colour from presets or a custom
   picker, with a live preview.
 
