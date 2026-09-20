@@ -24,10 +24,14 @@ Offline-first PWA. Today, tomorrow, and a backlog. Nothing else.
   leave the backlog once used; items created in the backlog stay forever.
 - At **midnight**: crossed-out tasks disappear, unfinished ones roll into the new
   today, tomorrow becomes today.
-- **Staleness heat**: a task you keep pushing forward slowly tints toward a warning
-  colour — about halfway by 7 days, full colour by 14. After 5 days an 8-bit bear
-  starts stalking in from the right of the row, creeping closer the longer you defer
-  it (it looms but never reaches the text). Finishing the task clears both.
+- **Staleness heat**: a bar on the left of each row shows how long a task has been
+  deferred — neutral grey until it is overdue, then a shade of the heat colour that
+  deepens to the full colour by 14 days. A task becomes overdue by sitting unfinished
+  in today (or by being pushed to tomorrow by hand); one arriving from tomorrow
+  because the day turned starts fresh. After 5 days an 8-bit bear starts stalking in
+  from the right of the row, creeping closer the longer you defer it (it looms but
+  never reaches the text). Finishing the task clears both. At rollover the new today
+  is ordered oldest-first; reorder by hand any time and it stays put.
 - **Settings** (gear, top-right): choose the heat colour from presets or a custom
   picker, with a live preview.
 

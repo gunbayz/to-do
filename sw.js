@@ -1,4 +1,4 @@
-const CACHE = 'today-tomorrow-v32';
+const CACHE = 'today-tomorrow-v33';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.png'];
 
 self.addEventListener('install', e => {
