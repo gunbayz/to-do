@@ -206,6 +206,30 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
 .heat-preview .pv .sub{color:var(--muted);font-size:13px;font-weight:500}
 .set-hint{font-size:13px;line-height:1.5;color:var(--muted);margin-top:12px}
 
+/* ===== cloud sync ===== */
+.sync-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.sync-btn{font-family:var(--sans);font-size:15px;font-weight:600;border-radius:12px;
+  padding:12px 18px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.sync-btn:active{opacity:.6}
+.sync-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sync-btn.ghost{background:transparent}
+.sync-btn.danger{color:#ff3b30;margin-top:16px;display:block}
+.sync-input{width:100%;margin-top:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:16px;letter-spacing:.04em;padding:13px 14px;border:1px solid var(--line);
+  border-radius:12px;background:var(--card);color:var(--ink);outline:none}
+.sync-input:focus{border-color:var(--accent)}
+.sync-code-box{display:flex;align-items:center;gap:10px;margin:12px 0 4px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.sync-code{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;
+  letter-spacing:.06em;color:var(--ink);word-break:break-all}
+.sync-code-box .sync-btn{padding:8px 14px}
+.sync-status{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin-bottom:6px}
+.sync-status .dot{width:9px;height:9px;border-radius:50%;background:#34c759;flex-shrink:0}
+.sync-status[data-kind="busy"] .dot{background:#ff9500}
+.sync-status[data-kind="err"] .dot{background:#ff3b30}
+.sync-status[data-kind="busy"],.sync-status[data-kind="err"]{color:var(--muted)}
+.sync-msg{font-size:13px;color:#ff3b30;margin-top:10px;min-height:16px;line-height:1.4}
+
 /* helper */
 .hidden{display:none!important}
 </style>
@@ -272,6 +296,9 @@ li.task.temp .t-text{font-style:italic;color:#7b7d92}
     <div class="set-hint">Tasks left unresolved tint toward this colour as they roll over &mdash;
       about halfway by 7 days, full colour by 14. After 5 days a bear starts stalking in from
       the right, creeping closer the longer you put the task off.</div>
+
+    <div class="set-label">Cloud sync</div>
+    <div id="sync-body"></div>
   </div>
 </section>
 
@@ -317,10 +344,15 @@ function load() {
   try { state = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { state = null; }
   if (!state) state = { d: todayStr(), today: [], tomorrow: [], backlog: [] };
   state.heatColor = state.heatColor || DEFAULT_HEAT;   // staleness tint colour (user-chosen in Settings)
+  // updatedAt drives last-writer-wins between devices. Existing (pre-sync) data is
+  // treated as "current" so it wins over an empty cloud locker on first sync.
+  if (typeof state.updatedAt !== 'number') state.updatedAt = Date.now();
   rollover(state, todayStr());
-  save();
+  persist();   // quiet: don't bump the timestamp or push before the boot pull runs
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+// persist() = local-only write. save() = a real change: stamp the time and mirror to cloud.
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function save() { state.updatedAt = Date.now(); persist(); if (typeof pushSoon === 'function') pushSoon(); }
 
 /* ============================== rendering ============================== */
 const fmt = d => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -658,7 +690,7 @@ function setHeatColor(c, fromCustom) {
   }
 }
 function openSettings() {
-  renderSwatches(); renderHeatPreview();
+  renderSwatches(); renderHeatPreview(); renderSyncBody();
   settingsEl.classList.add('open'); setScrim.classList.add('show');
 }
 function closeSettings() {
@@ -1014,12 +1046,188 @@ function scheduleMidnight() {
   const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
   midnightTimer = setTimeout(checkRollover, next - now);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRollover(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { checkRollover(); if (syncCode) pullAndMerge(); }
+});
+
+/* ============================== cloud sync ============================== */
+// Anonymous, code-based sync. localStorage stays the instant, offline working
+// copy; this mirrors the state blob to a Cloudflare Worker keyed by a secret
+// code. No code set = the app behaves exactly as before, fully local.
+const SYNC_URL = 'https://todo-sync.george-121.workers.dev/';  // the deployed Worker
+const SYNC_CFG = 'today-sync-v1';                              // { code } — kept OUT of the synced blob
+const CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz';       // no 0/1/l/o — unambiguous when read aloud
+
+let syncCode = null;
+try { syncCode = (JSON.parse(localStorage.getItem(SYNC_CFG)) || {}).code || null; } catch (e) {}
+let pushTimer = null;
+
+// canonical form used both for display and as the Bearer token, so the same
+// code always hashes to the same locker regardless of how it was typed
+function canonCode(s) {
+  const raw = (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (raw.match(/.{1,4}/g) || []).join('-');
+}
+function newCode() {
+  const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+  let s = ''; for (let i = 0; i < 16; i++) s += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  return canonCode(s);
+}
+function saveCfg() { try { localStorage.setItem(SYNC_CFG, JSON.stringify({ code: syncCode })); } catch (e) {} }
+
+async function cloudGet() {
+  const r = await fetch(SYNC_URL, { headers: { Authorization: 'Bearer ' + syncCode } });
+  if (!r.ok) throw new Error('get ' + r.status);
+  return r.json();     // { state, updatedAt }
+}
+async function cloudPut() {
+  const r = await fetch(SYNC_URL, {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer ' + syncCode, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state, updatedAt: state.updatedAt || 0 })
+  });
+  if (!r.ok) throw new Error('put ' + r.status);
+  return r.json();
+}
+
+function setSyncStatus(text, kind) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.dataset.kind = kind || 'ok';
+  const t = el.querySelector('.txt'); if (t) t.textContent = text;
+}
+
+// debounced upload after a local change
+function pushSoon() {
+  if (!syncCode) return;
+  clearTimeout(pushTimer);
+  setSyncStatus('Saving…', 'busy');
+  pushTimer = setTimeout(async () => {
+    try { await cloudPut(); setSyncStatus('Synced', 'ok'); }
+    catch (e) { setSyncStatus('Offline — will retry', 'err'); }
+  }, 1500);
+}
+
+// last-writer-wins by updatedAt: newer remote replaces local; newer local is pushed up
+async function pullAndMerge() {
+  if (!syncCode) return;
+  setSyncStatus('Syncing…', 'busy');
+  let remote;
+  try { remote = await cloudGet(); }
+  catch (e) { setSyncStatus('Offline', 'err'); return; }
+  if (remote.state && (remote.updatedAt || 0) > (state.updatedAt || 0)) {
+    applyRemote(remote.state, remote.updatedAt);
+  } else if ((state.updatedAt || 0) > (remote.updatedAt || 0)) {
+    try { await cloudPut(); } catch (e) {}
+  }
+  setSyncStatus('Synced', 'ok');
+}
+
+function applyRemote(remoteState, remoteAt) {
+  state = remoteState;
+  state.heatColor = state.heatColor || DEFAULT_HEAT;
+  state.today = state.today || []; state.tomorrow = state.tomorrow || []; state.backlog = state.backlog || [];
+  state.updatedAt = remoteAt;              // keep the remote timestamp so LWW stays stable
+  rollover(state, todayStr());             // a pulled blob may be from an earlier day
+  persist();
+  renderAll();
+  if (settingsEl.classList.contains('open')) { renderSwatches(); renderHeatPreview(); }
+}
+
+// "Turn on sync": mint a code and push THIS device's list up as the source of truth
+async function syncCreate() {
+  syncCode = newCode(); saveCfg();
+  state.updatedAt = Date.now(); persist();
+  renderSyncBody();
+  setSyncStatus('Syncing…', 'busy');
+  try { await cloudPut(); setSyncStatus('Synced', 'ok'); }
+  catch (e) { setSyncStatus('Offline — will retry', 'err'); }
+}
+
+// "I have a code": pull that locker's list onto this device (replaces local list)
+async function syncConnect(input) {
+  const code = canonCode(input);
+  if (code.replace(/-/g, '').length !== 16) { syncMsg('That code doesn’t look right — check for typos.'); return; }
+  syncCode = code; saveCfg(); syncMsg('Connecting…');
+  try {
+    const remote = await cloudGet();
+    if (remote.state && (remote.updatedAt || 0) > 0) applyRemote(remote.state, remote.updatedAt);
+    else { state.updatedAt = Date.now(); persist(); await cloudPut(); }   // empty locker: seed it from here
+    renderSyncBody(); setSyncStatus('Synced', 'ok');
+  } catch (e) {
+    syncCode = null; saveCfg();   // roll back so a failed connect doesn't strand the device
+    syncMsg('Couldn’t reach the sync server. Check your connection and try again.');
+  }
+}
+
+function syncDisconnect() {
+  syncCode = null; try { localStorage.removeItem(SYNC_CFG); } catch (e) {}
+  clearTimeout(pushTimer);
+  renderSyncBody();
+}
+function copyCode() {
+  if (!navigator.clipboard) return;
+  navigator.clipboard.writeText(syncCode).then(() => {
+    const b = document.getElementById('sync-copy');
+    if (b) { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); }
+  }).catch(() => {});
+}
+function syncMsg(t) { const m = document.getElementById('sync-msg'); if (m) m.textContent = t; }
+
+function renderSyncBody() {
+  const el = document.getElementById('sync-body');
+  if (!el) return;
+  if (syncCode) {
+    el.innerHTML =
+      `<div class="sync-status" id="sync-status" data-kind="ok"><span class="dot"></span><span class="txt">Synced</span></div>
+       <p class="set-hint" style="margin-top:0">Enter this code in the app on another device to see the same list.
+         Keep it somewhere safe &mdash; it&rsquo;s the only key to your tasks, and it can&rsquo;t be recovered.</p>
+       <div class="sync-code-box">
+         <code class="sync-code" id="sync-code-val">${syncCode}</code>
+         <button type="button" class="sync-btn ghost" id="sync-copy">Copy</button>
+       </div>
+       <button type="button" class="sync-btn danger" id="sync-disconnect">Disconnect this device</button>`;
+    document.getElementById('sync-copy').addEventListener('click', copyCode);
+    document.getElementById('sync-disconnect').addEventListener('click', syncDisconnect);
+  } else {
+    el.innerHTML =
+      `<p class="set-hint" style="margin-top:0">Back up your tasks and sync them across your devices.
+         No account or email &mdash; access is a private code only you hold.</p>
+       <div class="sync-actions">
+         <button type="button" class="sync-btn primary" id="sync-create">Turn on sync</button>
+         <button type="button" class="sync-btn ghost" id="sync-have">I have a code</button>
+       </div>
+       <div id="sync-enter" class="hidden">
+         <input class="sync-input" id="sync-code-input" placeholder="xxxx-xxxx-xxxx-xxxx"
+           autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+         <p class="set-hint" style="margin-top:8px">This replaces this device&rsquo;s list with the one saved to that code.</p>
+         <div class="sync-actions">
+           <button type="button" class="sync-btn primary" id="sync-connect">Connect</button>
+           <button type="button" class="sync-btn ghost" id="sync-cancel">Cancel</button>
+         </div>
+         <div class="sync-msg" id="sync-msg"></div>
+       </div>`;
+    document.getElementById('sync-create').addEventListener('click', syncCreate);
+    document.getElementById('sync-have').addEventListener('click', () => {
+      document.getElementById('sync-enter').classList.remove('hidden');
+      document.getElementById('sync-code-input').focus();
+    });
+    document.getElementById('sync-cancel').addEventListener('click', () => {
+      document.getElementById('sync-enter').classList.add('hidden'); syncMsg('');
+    });
+    const connect = () => syncConnect(document.getElementById('sync-code-input').value);
+    document.getElementById('sync-connect').addEventListener('click', connect);
+    document.getElementById('sync-code-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); connect(); }
+    });
+  }
+}
 
 /* ============================== boot ============================== */
 load();
 renderAll();
 scheduleMidnight();
+if (syncCode) pullAndMerge();   // reconcile with the cloud on every open
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
